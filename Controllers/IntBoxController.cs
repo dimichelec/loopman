@@ -84,8 +84,15 @@ namespace loopman
             if (Mouse.Captured == tb)
             {
                 int i = int.Parse(tb.Text);
-                ibValue = (ibNumberMode == 1) ? (int)Math.Log2(i) : i;
-                tb.Background = inactiveBrush;
+                i = (ibNumberMode == 1) ? (int)Math.Log2(i) : i;
+                if (ibValue != i)
+                {
+                    ibValue = i;
+                    EndCapture(tb);
+                } else
+                {
+                    tb.Background = inactiveBrush;
+                }
             }
             e.Handled = true;
         }

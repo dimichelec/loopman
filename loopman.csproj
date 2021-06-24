@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\MetronomeController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NAudio" Version="2.0.0" />
     <PackageReference Include="System.Management" Version="5.0.0" />
   </ItemGroup>

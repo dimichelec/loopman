@@ -41,16 +41,13 @@ namespace loopman
         private int iMidiStop;
 
         private int iTempo;
-        private int iTimeSigNum;
-        private int iTimeSigDen;
         private int iCountinBars;
         private int iCountBars;
         private int iCountBeats;
         private bool bCountingIn;
         private bool bMetroPlaying;
         private bool bMetroMute;
-        private int beatMS = (int)(1000f * 60f / 110f);
-        private int barsToRecord;
+        private int halfBeatMS;
 
         private Stopwatch timecheck = new Stopwatch();
 
@@ -124,6 +121,7 @@ namespace loopman
             inputPatcher.clickPan = Settings.Default.MetroPan;
 
             iTempo = int.Parse(ibTempo.Text);
+            halfBeatMS = (int)(1000f * 60f / (float)iTempo / 2f);
 
             // init recorder parameters
             ibCountInBeats.Text = Settings.Default.CountInBeats.ToString();
@@ -290,7 +288,7 @@ namespace loopman
                     iCountinBars = int.Parse(ibCountInBeats.Text);
                     iCountBars = 0;
                     iCountBeats = 4;
-                    bCountingIn = bMetroPlaying = true;
+                    bCountingIn = bMetroPlaying = halfBeat = true;
                     break;
 
                 case RecordingStates.recording:
@@ -411,6 +409,8 @@ namespace loopman
             timecheck.Start();
         }
 
+        private bool halfBeat;
+
         void OnAsioOutAudioAvailable(object sender, AsioAudioAvailableEventArgs e)
         {
             inputPatcher.ProcessBuffer(
@@ -418,45 +418,58 @@ namespace loopman
                 e.SamplesPerBuffer, e.AsioSampleType
             );
 
-            if (bMetroPlaying && (timecheck.ElapsedMilliseconds >= beatMS))
+            if (bMetroPlaying && (timecheck.ElapsedMilliseconds >= halfBeatMS))
             {
                 // we're running, ready, and a new 16th has elapsed
                 timecheck.Restart();
-                bool flag = false;
-                if (iCountBeats < iTimeSigNum) iCountBeats++;
+                if (!halfBeat)
+                {
+                    Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Transparent; });
+                    halfBeat = true;
+                }
                 else
                 {
-                    iCountBeats = 1;
-                    iCountBars++;
-                    if ((iCountinBars != -1) && (iCountBars > iCountinBars)) bCountingIn = false;
-                    if (iCountBars > 99) iCountBars = 1;
-                    //Dispatcher.Invoke(() => { ibCountBars.Text = iCountBars.ToString(); });
-                    flag = true;
-
-                    if (recordingState == RecordingStates.armed)
-                    {
-                        if (iCountBars > iCountinBars)
-                        {
-                            inputPatcher.MarkLoopStart();
-                            RecordedBars = 0;
-                            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Red; });
-                            recordingState = RecordingStates.recording;
-                        }
-                    }
-                    else if (recordingState == RecordingStates.recording)
-                    {
-                        if (++RecordedBars >= barsToRecord)
-                        {
-                            inputPatcher.MarkLoopEnd();
-                            inputPatcher.Play();
-                            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Green; });
-                            recordingState = RecordingStates.playback;
-                            inputPatcher.isRecording = false;
-                        }
-                    }
+                    Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Red; });
+                    iCountBeats++;
+                    if (!bMetroMute && bCountingIn) inputPatcher.Click(true);
+                    halfBeat = false;
                 }
+
+                //bool flag = false;
+                //if (iCountBeats < iTimeSigNum) iCountBeats++;
+                //else
+                //{
+                //    iCountBeats = 1;
+                //    iCountBars++;
+                //    if ((iCountinBars != -1) && (iCountBars > iCountinBars)) bCountingIn = false;
+                //    if (iCountBars > 99) iCountBars = 1;
+                //    //Dispatcher.Invoke(() => { ibCountBars.Text = iCountBars.ToString(); });
+                //    flag = true;
+
+                //    if (recordingState == RecordingStates.armed)
+                //    {
+                //        if (iCountBars > iCountinBars)
+                //        {
+                //            inputPatcher.MarkLoopStart();
+                //            RecordedBars = 0;
+                //            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Red; });
+                //            recordingState = RecordingStates.recording;
+                //        }
+                //    }
+                //    else if (recordingState == RecordingStates.recording)
+                //    {
+                //        if (++RecordedBars >= barsToRecord)
+                //        {
+                //            inputPatcher.MarkLoopEnd();
+                //            inputPatcher.Play();
+                //            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Green; });
+                //            recordingState = RecordingStates.playback;
+                //            inputPatcher.isRecording = false;
+                //        }
+                //    }
+                //}
                 //Dispatcher.Invoke(() => {  });
-                if (!bMetroMute && bCountingIn) inputPatcher.Click(flag);
+                //if (!bMetroMute && bCountingIn) inputPatcher.Click(flag);
             }
 
             e.WrittenToOutputBuffers = true;
@@ -579,7 +592,11 @@ namespace loopman
         // ----------------------------------------------------------------------------
         // Metronome Interface 
 
-        private void ibTempo_LostMouseCapture(object sender, MouseEventArgs e) => iTempo = int.Parse(ibTempo.Text);
+        private void ibTempo_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            iTempo = int.Parse(ibTempo.Text);
+            halfBeatMS = (int)(1000f * 60f / (float)iTempo / 2f);
+    }
 
         private void bMetroPlay_Click(object sender, RoutedEventArgs e)
         {
@@ -593,7 +610,7 @@ namespace loopman
                 iCountinBars = int.Parse(ibCountInBeats.Text);
                 iCountBars = 0;
                 iCountBeats = 4;
-                bMetroPlaying = true;
+                bMetroPlaying = halfBeat = true;
                 bMetroPlay.Foreground = Brushes.Green;
             }
         }
