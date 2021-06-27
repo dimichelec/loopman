@@ -41,24 +41,27 @@ namespace loopman
         private int iMidiStop;
 
         private int iTempo;
-        private int iCountinBars;
-        private int iCountBars;
-        private int iCountBeats;
         private bool bCountingIn;
         private bool bMetroPlaying;
         private bool bMetroMute;
+        private bool bMetroClick;
         private int halfBeatMS;
+        private int iCountBeats;
+        private int iCountInBeats;
+        private bool halfBeat;
+        private int iRecordBeats;
 
-        private Stopwatch timecheck = new Stopwatch();
+
+        private readonly Stopwatch timecheck = new();
 
 
         private const double clickVolumeLogExp = 2.718;
         private float clickVolumeScale = (float)(1 / Math.Pow(100, clickVolumeLogExp));
 
-        private IntBoxController ibController = new IntBoxController();
-        private IntDialController idController = new IntDialController();
+        private readonly IntBoxController ibController = new();
+        private readonly IntDialController idController = new();
 
-        private VUMeterController vuMeter = null;
+        private readonly VUMeterController vuMeter;
 
 
         // ----------------------------------------------------------------------------
@@ -69,10 +72,8 @@ namespace loopman
             InitializeComponent();
 
             // recall window location
-            this.Left = Settings.Default.WindowLeft;
-            this.Top = Settings.Default.WindowTop;
-
-            LoadDeviceLists();
+            Left = Settings.Default.WindowLeft;
+            Top = Settings.Default.WindowTop;
 
             // init main window control controllers 
             vuMeter = new VUMeterController(
@@ -125,6 +126,7 @@ namespace loopman
 
             // init recorder parameters
             ibCountInBeats.Text = Settings.Default.CountInBeats.ToString();
+            ibRecordBeats.Text = Settings.Default.RecordBeats.ToString();
             rPlayRecord.Stroke = Brushes.Transparent;
 
             DispatcherTimer timServices = new DispatcherTimer();
@@ -138,7 +140,6 @@ namespace loopman
         {
             if (inputPatcher.iRecordMax > 0)
                 pbMemory.Value = (int)(100f * (float)inputPatcher.iRecord / inputPatcher.iRecordMax);
-
 
         }
 
@@ -155,6 +156,7 @@ namespace loopman
             // save metronome parameters
             Settings.Default.Tempo = int.Parse(ibTempo.Text);
             Settings.Default.CountInBeats = int.Parse(ibCountInBeats.Text);
+            Settings.Default.RecordBeats = int.Parse(ibRecordBeats.Text);
 
             Settings.Default.MetroVolume = idController.GetValue(idMetroVolume);
             Settings.Default.MetroMute = (idMetroVolume.Visibility == Visibility.Hidden);
@@ -170,42 +172,7 @@ namespace loopman
             Application.Current.Shutdown();
         }
 
-        private void LoadDeviceLists()
-        {
-            // audio devices
-            cbDevice.SelectedItem = -1;
-            cbDevice.Items.Clear();
-
-            foreach (string name in AsioOut.GetDriverNames())
-            {
-                ComboBoxItem o = new ComboBoxItem();
-                string s = name;
-                if (!s.Contains("asio", StringComparison.OrdinalIgnoreCase)) s += " ASIO";
-                o.Content = s;
-                if (!TestAudioDriver(name)) { o.IsEnabled = false; }
-                _ = cbDevice.Items.Add(o);
-            }
-
-            if (cbDevice.Items.Count > 0)
-                cbDevice.Text = cbDevice.Items[0].ToString();
-
-            // midi devices
-            cbMidiDevice.SelectedItem = -1;
-            cbMidiDevice.Items.Clear();
-
-            for (int i = 0; i < MidiIn.NumberOfDevices; i++)
-            {
-                ComboBoxItem o = new ComboBoxItem();
-                o.Content = MidiIn.DeviceInfo(i).ProductName;
-                //if (!TestAudioDriver(name)) o.IsEnabled = false;
-                cbMidiDevice.Items.Add(o);
-            }
-
-            if (cbMidiDevice.Items.Count > 0)
-                cbMidiDevice.Text = cbMidiDevice.Items[0].ToString();
-        }
-
-        private void tbFocusOnNext(object sender, KeyEventArgs e)
+        private void FocusOnNext(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
@@ -214,7 +181,7 @@ namespace loopman
             }
         }
 
-        private void tbSelectAll(object sender, RoutedEventArgs e)
+        private void SelectAll(object sender, RoutedEventArgs e)
         {
             TextBox tb = (TextBox)sender;
             tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
@@ -223,7 +190,7 @@ namespace loopman
 
         // ----------------------------------------------------------------------------
 
-        public void GetDevices()
+        public static void GetDevices()
         {
             var objSearcher = new ManagementObjectSearcher(
                 "SELECT * FROM Win32_SoundDevice"
@@ -241,7 +208,6 @@ namespace loopman
         }
 
 
-
         // ----------------------------------------------------------------------------
         // Recorder
 
@@ -256,22 +222,8 @@ namespace loopman
 
         private void StopRecorder()
         {
-            if (bMetroPlaying)
-            {
-                bMetroPlaying = false;
-                bMetroPlay.Foreground = Brushes.Black;
-            }
-            else
-            {
-                iCountBars = iCountBeats = 1;
-            }
             ResetRecorderState();
-            //if (bMetroPlaying)
-            //{
-            //    metronome.Stop();
-            //    bMetroPlay.Foreground = Brushes.Black;
-            //}
-            //else metronome.Reset();
+            StopMetronome(false);
             inputPatcher.Stop();
         }
 
@@ -284,11 +236,9 @@ namespace loopman
                     rPlayRecord.Stroke = Brushes.Yellow;
                     recordingState = RecordingStates.armed;
                     inputPatcher.Record();
-                    //metronome.Play(int.Parse(ibCountInBars.Text));
-                    iCountinBars = int.Parse(ibCountInBeats.Text);
-                    iCountBars = 0;
-                    iCountBeats = 4;
-                    bCountingIn = bMetroPlaying = halfBeat = true;
+                    iCountInBeats = int.Parse(ibCountInBeats.Text);
+                    iRecordBeats = int.Parse(ibRecordBeats.Text);
+                    StartMetronome(true);
                     break;
 
                 case RecordingStates.recording:
@@ -297,6 +247,7 @@ namespace loopman
                     inputPatcher.isRecording = false;
                     rPlayRecord.Stroke = Brushes.Green;
                     recordingState = RecordingStates.playback;
+                    StopMetronome(true);
                     break;
 
                 default:
@@ -307,34 +258,7 @@ namespace loopman
 
         private void bPlayRecord_Click(object sender, RoutedEventArgs e)
         {
-            //barsToRecord = int.Parse(ibBars.Text);
             PressPlayRecord();
-        }
-
-        private int RecordedBars;
-        private void NewBarCounted()
-        {
-            if (recordingState == RecordingStates.armed)
-            {
-                //if (int.Parse(ibCountBars.Text) > int.Parse(ibCountInBeats.Text))
-                //{
-                //    inputPatcher.MarkLoopStart();
-                //    RecordedBars = 0;
-                //    rPlayRecord.Stroke = Brushes.Red;
-                //    recordingState = RecordingStates.recording;
-                //}
-            } else if (recordingState == RecordingStates.recording)
-            {
-                //if (++RecordedBars >= int.Parse(ibBars.Text))
-                //{
-                //    inputPatcher.MarkLoopEnd();
-                //    inputPatcher.Play();
-                //    rPlayRecord.Stroke = Brushes.Green;
-                //    recordingState = RecordingStates.playback;
-                //    inputPatcher.isRecording = false;
-                //}
-
-            }
         }
 
         private void bStop_Click(object sender, RoutedEventArgs e) => StopRecorder();
@@ -342,28 +266,6 @@ namespace loopman
 
         // ----------------------------------------------------------------------------
         // Audio Driver Interface 
-
-        private void cbDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (cbDevice.SelectedItem == null) return;
-            ChangeAudioDriver(((ComboBoxItem)cbDevice.SelectedItem).Content.ToString());
-        }
-
-        private bool TestAudioDriver(string driverName)
-        {
-            AsioDriver driver;
-            try
-            {
-                driver = AsioDriver.GetAsioDriverByName(driverName);
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-            if (!driver.Init(IntPtr.Zero)) return false;
-            driver.ReleaseComAsioDriver();
-            return true;
-        }
 
         void ChangeAudioDriver(string driverName)
         {
@@ -403,13 +305,10 @@ namespace loopman
 
             vuMeter.SetPatcher(inputPatcher);
 
-            Settings.Default.AudioDriverName = driverName;
-            cbDevice.Text = driverName;
+            inputPatcher.clickVolume = (float)(clickVolumeScale * Math.Pow(Settings.Default.MetroVolume, clickVolumeLogExp));
 
             timecheck.Start();
         }
-
-        private bool halfBeat;
 
         void OnAsioOutAudioAvailable(object sender, AsioAudioAvailableEventArgs e)
         {
@@ -420,7 +319,7 @@ namespace loopman
 
             if (bMetroPlaying && (timecheck.ElapsedMilliseconds >= halfBeatMS))
             {
-                // we're running, ready, and a new 16th has elapsed
+                // we're running, ready, and a new haf-beat has elapsed
                 timecheck.Restart();
                 if (!halfBeat)
                 {
@@ -430,46 +329,32 @@ namespace loopman
                 else
                 {
                     Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Red; });
-                    iCountBeats++;
-                    if (!bMetroMute && bCountingIn) inputPatcher.Click(true);
                     halfBeat = false;
+                    if(iCountInBeats > 0)
+                    {
+                        if (++iCountBeats > iCountInBeats)
+                        {
+                            bCountingIn = false;
+
+                            if (recordingState == RecordingStates.armed)
+                            {
+                                inputPatcher.MarkLoopStart();
+                                Dispatcher.Invoke(() => rPlayRecord.Stroke = Brushes.Red);
+                                recordingState = RecordingStates.recording;
+                            } 
+                            else if (recordingState == RecordingStates.recording)
+                            {
+                                if (iCountBeats > (iRecordBeats + iCountInBeats))
+                                {
+                                    Dispatcher.Invoke(() => PressPlayRecord());
+                                }
+                            }
+
+
+                        }
+                    }
+                    if (!bMetroMute && bCountingIn && bMetroClick) inputPatcher.Click(true);
                 }
-
-                //bool flag = false;
-                //if (iCountBeats < iTimeSigNum) iCountBeats++;
-                //else
-                //{
-                //    iCountBeats = 1;
-                //    iCountBars++;
-                //    if ((iCountinBars != -1) && (iCountBars > iCountinBars)) bCountingIn = false;
-                //    if (iCountBars > 99) iCountBars = 1;
-                //    //Dispatcher.Invoke(() => { ibCountBars.Text = iCountBars.ToString(); });
-                //    flag = true;
-
-                //    if (recordingState == RecordingStates.armed)
-                //    {
-                //        if (iCountBars > iCountinBars)
-                //        {
-                //            inputPatcher.MarkLoopStart();
-                //            RecordedBars = 0;
-                //            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Red; });
-                //            recordingState = RecordingStates.recording;
-                //        }
-                //    }
-                //    else if (recordingState == RecordingStates.recording)
-                //    {
-                //        if (++RecordedBars >= barsToRecord)
-                //        {
-                //            inputPatcher.MarkLoopEnd();
-                //            inputPatcher.Play();
-                //            Dispatcher.Invoke(() => { rPlayRecord.Stroke = Brushes.Green; });
-                //            recordingState = RecordingStates.playback;
-                //            inputPatcher.isRecording = false;
-                //        }
-                //    }
-                //}
-                //Dispatcher.Invoke(() => {  });
-                //if (!bMetroMute && bCountingIn) inputPatcher.Click(flag);
             }
 
             e.WrittenToOutputBuffers = true;
@@ -488,12 +373,6 @@ namespace loopman
         // ----------------------------------------------------------------------------
         // MIDI Driver Interface 
 
-        private void cbMidiDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (cbMidiDevice.SelectedItem == null) return;
-            ChangeMIDIDevice(((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString());
-        }
-
         private void ChangeMIDIDevice(string deviceName)
         {
             int deviceId;
@@ -510,8 +389,8 @@ namespace loopman
             midiIn.ErrorReceived += MidiError;
             midiIn.Start();
 
-            Settings.Default.MIDIDriverName = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
-            cbMidiDevice.Text = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
+            //Settings.Default.MIDIDriverName = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
+            //cbMidiDevice.Text = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
         }
 
         private void midiTimer_Tick(object sender, EventArgs e)
@@ -590,7 +469,31 @@ namespace loopman
 
 
         // ----------------------------------------------------------------------------
-        // Metronome Interface 
+        // Metronome 
+
+        private void StartMetronome(bool useCountIn = false)
+        {
+            if (useCountIn)
+            {
+                iCountInBeats = int.Parse(ibCountInBeats.Text);
+            } else
+            {
+                iCountInBeats = -1;
+            }
+            iCountBeats = 0;
+            bCountingIn = bMetroPlaying = bMetroClick = halfBeat = true;
+        }
+
+        private void StopMetronome(bool stopJustClick = true)
+        {
+            if (!stopJustClick)
+            {
+                bMetroPlaying = false;
+                eBeat.Fill = Brushes.Transparent;
+                bMetroPlay.Foreground = Brushes.Black;
+            }
+            bMetroClick = false;
+        }
 
         private void ibTempo_LostMouseCapture(object sender, MouseEventArgs e)
         {
@@ -602,15 +505,11 @@ namespace loopman
         {
             if (bMetroPlaying)
             {
-                bMetroPlaying = false;
-                bMetroPlay.Foreground = Brushes.Black;
+                StopMetronome(false);
             }
             else
             {
-                iCountinBars = int.Parse(ibCountInBeats.Text);
-                iCountBars = 0;
-                iCountBeats = 4;
-                bMetroPlaying = halfBeat = true;
+                StartMetronome();
                 bMetroPlay.Foreground = Brushes.Green;
             }
         }
@@ -624,7 +523,7 @@ namespace loopman
 
         private void IntBox_PreviewMouseDown(object sender, MouseButtonEventArgs e) => ibController.PreviewMouseDown(sender, e);
         private void IntBox_PreviewMouseUp(object sender, MouseButtonEventArgs e) => ibController.PreviewMouseUp(sender, e);
-        private void IntBox_MouseMove(object sender, MouseEventArgs e) => ibController.MouseMove(sender, e, gMain);
+        private void IntBox_MouseMove(object sender, MouseEventArgs e) => ibController.MouseMove(sender, e, cMain);
         private void IntBox_MouseWheel(object sender, MouseWheelEventArgs e) => ibController.MouseWheel(sender, e);
         private void IntBox_PreviewKeyDown(object sender, KeyEventArgs e) => ibController.PreviewKeyDown(sender, e);
 
@@ -668,6 +567,19 @@ namespace loopman
         {
             idNoiseGate.Visibility = (idNoiseGate.Visibility == Visibility.Hidden) ? Visibility.Visible : Visibility.Hidden;
             inputPatcher.EnableNoiseGate(idNoiseGate.Visibility == Visibility.Visible);
+        }
+
+        private void bSettings_Click(object sender, RoutedEventArgs e)
+        {
+            StopMetronome();
+            StopRecorder();
+
+            SettingsWindow w = new();
+            if ((bool)w.ShowDialog())
+            {
+                ChangeAudioDriver(Settings.Default.AudioDriverName);
+                ChangeMIDIDevice(Settings.Default.MIDIDriverName);
+            }
         }
     }
 }

@@ -97,7 +97,7 @@ namespace loopman
             e.Handled = true;
         }
 
-        public void MouseMove(object sender, MouseEventArgs e, Grid gMain)
+        public void MouseMove(object sender, MouseEventArgs e, Canvas cMain)
         {
             TextBlock tb = (TextBlock)sender;
             if (Mouse.Captured == tb)
@@ -113,8 +113,8 @@ namespace loopman
                 }
                 else
                 {
-                    if ((e.GetPosition(gMain).X < 0) || (e.GetPosition(gMain).X > gMain.DesiredSize.Width)
-                     || (e.GetPosition(gMain).Y < 0) || (e.GetPosition(gMain).Y > gMain.DesiredSize.Height))
+                    if ((e.GetPosition(cMain).X < 0) || (e.GetPosition(cMain).X > cMain.DesiredSize.Width)
+                     || (e.GetPosition(cMain).Y < 0) || (e.GetPosition(cMain).Y > cMain.DesiredSize.Height))
                     {
                         EndCapture(tb);
                     }

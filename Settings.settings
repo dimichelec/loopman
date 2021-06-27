@@ -32,8 +32,8 @@
     <Setting Name="SignatureDenominator" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">4</Value>
     </Setting>
-    <Setting Name="RecordingBars" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">2</Value>
+    <Setting Name="RecordBeats" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">16</Value>
     </Setting>
     <Setting Name="CountInBeats" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">4</Value>

@@ -145,13 +145,13 @@ namespace loopman {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("2")]
-        public int RecordingBars {
+        [global::System.Configuration.DefaultSettingValueAttribute("16")]
+        public int RecordBeats {
             get {
-                return ((int)(this["RecordingBars"]));
+                return ((int)(this["RecordBeats"]));
             }
             set {
-                this["RecordingBars"] = value;
+                this["RecordBeats"] = value;
             }
         }
         

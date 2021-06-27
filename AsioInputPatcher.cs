@@ -25,8 +25,8 @@ namespace loopman
         private float[] mixBuffer;
         private int sampleRate;
 
-        private AudioFileReader clickFile0 = new AudioFileReader("Bb Click.wav");
-        private AudioFileReader clickFile1 = new AudioFileReader("Eb Click.wav");
+        private AudioFileReader clickFile0 = new AudioFileReader("Media/Bb Click.wav");
+        private AudioFileReader clickFile1 = new AudioFileReader("Media/Eb Click.wav");
         private float[] clickBuffer0;
         private float[] clickBuffer1;
         private float[] clickMix;
