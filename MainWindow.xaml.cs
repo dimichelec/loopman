@@ -34,9 +34,6 @@ namespace loopman
         private MidiIn midiIn;
         private DispatcherTimer midiTimer;
         private Brush bMidiDefault;
-        private Brush bMidiPlayRecordDefault;
-        private Brush bMidiStopDefault;
-        private int iMidiLearn;
         private int iMidiPlayRecord;
         private int iMidiStop;
 
@@ -103,8 +100,6 @@ namespace loopman
             iMidiPlayRecord = Settings.Default.MIDIPlayRecord;
             iMidiStop = Settings.Default.MIDIStop;
             bMidiDefault = tbMidi.Background;
-            bMidiPlayRecordDefault = bMidiPlayRecord.Background;
-            bMidiStopDefault = bMidiStop.Background;
 
             // init metronome controller
             ibTempo.Text = Settings.Default.Tempo.ToString();
@@ -307,6 +302,9 @@ namespace loopman
 
             inputPatcher.clickVolume = (float)(clickVolumeScale * Math.Pow(Settings.Default.MetroVolume, clickVolumeLogExp));
 
+            inputPatcher.SetNoiseGateThreshold(Settings.Default.NoiseGateThreshold);
+            inputPatcher.EnableNoiseGate(Settings.Default.NoiseGateEnabled);
+
             timecheck.Start();
         }
 
@@ -388,9 +386,6 @@ namespace loopman
             midiIn.MessageReceived += MidiReceived;
             midiIn.ErrorReceived += MidiError;
             midiIn.Start();
-
-            //Settings.Default.MIDIDriverName = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
-            //cbMidiDevice.Text = MidiIn.DeviceInfo(deviceId).ProductName.ToString();
         }
 
         private void midiTimer_Tick(object sender, EventArgs e)
@@ -400,32 +395,15 @@ namespace loopman
 
         private void MidiReceived(object sender, MidiInMessageEventArgs e)
         {
-            //Debug.WriteLine("0x{0:X8} {1} {2} {3}", e.RawMessage, e.MidiEvent, e.MidiEvent.CommandCode, e.MidiEvent.Channel);
-            if (iMidiLearn != 0)
+            if (e.RawMessage == iMidiPlayRecord)
             {
-                if (iMidiLearn == 1)
-                {
-                    iMidiPlayRecord = e.RawMessage;
-                    bMidiPlayRecord.Dispatcher.Invoke(() => { bMidiPlayRecord.Background = bMidiPlayRecordDefault; });
-                } else if (iMidiLearn == 2)
-                {
-                    iMidiStop = e.RawMessage;
-                    bMidiStop.Dispatcher.Invoke(() => { bMidiStop.Background = bMidiStopDefault; });
-                }
-                iMidiLearn = 0;
-            }
-            else
+                Dispatcher.Invoke(() => { PressPlayRecord(); });
+            } else if (e.RawMessage == iMidiStop)
             {
-                if (e.RawMessage == iMidiPlayRecord)
-                {
-                    Dispatcher.Invoke(() => { PressPlayRecord(); });
-                } else if (e.RawMessage == iMidiStop)
-                {
-                    Dispatcher.Invoke(() => { StopRecorder(); });
-                }
-                tbMidi.Dispatcher.Invoke(() => { tbMidi.Background = Brushes.Orange; });
-                if (!midiTimer.IsEnabled) midiTimer.Start();
+                Dispatcher.Invoke(() => { StopRecorder(); });
             }
+            tbMidi.Dispatcher.Invoke(() => { tbMidi.Background = Brushes.Orange; });
+            if (!midiTimer.IsEnabled) midiTimer.Start();
         }
 
         private void MidiError(object sender, MidiInMessageEventArgs e)
@@ -433,38 +411,6 @@ namespace loopman
             //Debug.WriteLine("! 0x{0:X8} {1}", e.RawMessage, e.MidiEvent);
             tbMidi.Dispatcher.Invoke(() => { tbMidi.Background = Brushes.Red; });
             if (!midiTimer.IsEnabled) midiTimer.Start();
-        }
-
-        private void bMidiPlayRecord_Click(object sender, RoutedEventArgs e)
-        {
-            if (iMidiLearn == 1)
-            {
-                bMidiPlayRecord.Background = bMidiPlayRecordDefault;
-                iMidiLearn = 0;
-                return;
-            }
-            if (iMidiLearn == 2)
-            {
-                bMidiStop.Background = bMidiStopDefault;
-            }
-            bMidiPlayRecord.Background = Brushes.Orange;
-            iMidiLearn = 1;
-        }
-
-        private void bMidiStop_Click(object sender, RoutedEventArgs e)
-        {
-            if (iMidiLearn == 2)
-            {
-                bMidiStop.Background = bMidiStopDefault;
-                iMidiLearn = 0;
-                return;
-            }
-            if (iMidiLearn == 1)
-            {
-                bMidiPlayRecord.Background = bMidiPlayRecordDefault;
-            }
-            bMidiStop.Background = Brushes.Orange;
-            iMidiLearn = 2;
         }
 
 
@@ -574,12 +520,18 @@ namespace loopman
             StopMetronome();
             StopRecorder();
 
+            if (midiIn != null) midiIn.Dispose();
+
             SettingsWindow w = new();
             if ((bool)w.ShowDialog())
             {
                 ChangeAudioDriver(Settings.Default.AudioDriverName);
-                ChangeMIDIDevice(Settings.Default.MIDIDriverName);
+
+                iMidiPlayRecord = Settings.Default.MIDIPlayRecord;
+                iMidiStop = Settings.Default.MIDIStop;
             }
+            ChangeMIDIDevice(Settings.Default.MIDIDriverName);
+
         }
     }
 }

@@ -47,9 +47,7 @@
                 <Rectangle x:Name="rOutput2" Height="5" Width="5" Fill="#FFBCBCBC" Stroke="#FFBCBCBC" StrokeThickness="0" Canvas.Top="17" Canvas.Left="111"/>
             </Canvas>
 
-            <TextBlock x:Name="tbMidi" Height="18" Canvas.Left="152" Canvas.Top="30" Text="MIDI" Width="34" Background="{DynamicResource {x:Static SystemColors.InactiveBorderBrushKey}}" TextAlignment="Center" FontWeight="Normal" RenderTransformOrigin="0.5,0.5"/>
-            <Button x:Name="bMidiPlayRecord" Content="►/●" Canvas.Left="196" Canvas.Top="30" Height="18" Width="36" Padding="1,0,1,1" FontSize="14" FontWeight="Bold" Click="bMidiPlayRecord_Click" FontFamily="Arial Black"/>
-            <Button x:Name="bMidiStop" Content="■" Canvas.Left="240" Canvas.Top="30" Height="18" Width="36" Padding="0,-6,1,1" FontSize="20" FontWeight="Bold" Click="bMidiStop_Click" FontFamily="Arial Black" BorderThickness="1,1,1,1" UseLayoutRounding="False"/>
+            <TextBlock x:Name="tbMidi" Height="18" Canvas.Left="242" Canvas.Top="30" Text="MIDI" Width="34" Background="{DynamicResource {x:Static SystemColors.InactiveBorderBrushKey}}" TextAlignment="Center" FontWeight="Normal" RenderTransformOrigin="0.5,0.5"/>
             <Button x:Name="bSettings" Canvas.Left="0" Canvas.Top="33" Width="15" Height="15" Click="bSettings_Click" Padding="0,0,0,0">
                 <Image Height="12" Stretch="Fill" Source="Media/cog.png" Width="12"/>
             </Button>

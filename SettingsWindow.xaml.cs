@@ -24,6 +24,15 @@ namespace loopman
     /// </summary>
     public partial class SettingsWindow : Window
     {
+
+        private MidiIn midiIn;
+        private Brush bMidiPlayRecordDefault;
+        private Brush bMidiStopDefault;
+        private int iMidiLearn;
+        private int iMidiPlayRecord;
+        private int iMidiStop;
+
+
         public SettingsWindow()
         {
             InitializeComponent();
@@ -32,6 +41,17 @@ namespace loopman
 
             cbDevice.Text = Settings.Default.AudioDriverName;
             cbMidiDevice.Text = Settings.Default.MIDIDriverName;
+
+            bMidiPlayRecordDefault = bMidiPlayRecord.Background;
+            bMidiStopDefault = bMidiStop.Background;
+
+            tbMidiPlayRecordMap.Text = Settings.Default.MIDIPlayRecord.ToString("X8");
+            tbMidiStopMap.Text = Settings.Default.MIDIStop.ToString("X8");
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (midiIn != null) midiIn.Dispose();
 
         }
 
@@ -90,17 +110,75 @@ namespace loopman
         private void cbDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             //cbDevice.Text = driverName;
-
         }
 
         private void cbMidiDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            ChangeMIDIDevice(((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString());
         }
+
+
+        // ----------------------------------------------------------------------------
+        // MIDI Driver Interface 
+
+        private void ChangeMIDIDevice(string deviceName)
+        {
+            int deviceId;
+            for (deviceId = 0; deviceId < MidiIn.NumberOfDevices; deviceId++)
+            {
+                if (deviceName == MidiIn.DeviceInfo(deviceId).ProductName) break;
+            }
+
+            if (deviceId >= MidiIn.NumberOfDevices) deviceId = 0;
+
+            if (midiIn != null) midiIn.Dispose();
+            midiIn = new MidiIn(deviceId);
+            midiIn.MessageReceived += MidiReceived;
+            midiIn.ErrorReceived += MidiError;
+            midiIn.Start();
+        }
+
+        private void MidiReceived(object sender, MidiInMessageEventArgs e)
+        {
+            //Debug.WriteLine("0x{0:X8} {1} {2} {3}", e.RawMessage, e.MidiEvent, e.MidiEvent.CommandCode, e.MidiEvent.Channel);
+            if (iMidiLearn != 0)
+            {
+                if (iMidiLearn == 1)
+                {
+                    iMidiPlayRecord = e.RawMessage;
+                    Dispatcher.Invoke(() => { 
+                        bMidiPlayRecord.Background = bMidiPlayRecordDefault;
+                        tbMidiPlayRecordMap.Text = e.RawMessage.ToString("X8");
+                    });
+                }
+                else if (iMidiLearn == 2)
+                {
+                    iMidiStop = e.RawMessage;
+                    Dispatcher.Invoke(() => { 
+                        bMidiStop.Background = bMidiStopDefault;
+                        tbMidiStopMap.Text = e.RawMessage.ToString("X8");
+                    });
+                }
+                iMidiLearn = 0;
+            }
+        }
+
+        private void MidiError(object sender, MidiInMessageEventArgs e)
+        {
+            //Debug.WriteLine("! 0x{0:X8} {1}", e.RawMessage, e.MidiEvent);
+        }
+
+
+        // ----------------------------------------------------------------------------
+
 
         private void bOK_Click(object sender, RoutedEventArgs e)
         {
             Settings.Default.AudioDriverName = ((ComboBoxItem)cbDevice.SelectedItem).Content.ToString();
             Settings.Default.MIDIDriverName = ((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString();
+
+            Settings.Default.MIDIPlayRecord = iMidiPlayRecord;
+            Settings.Default.MIDIStop = iMidiStop;
 
             DialogResult = true;
         }
@@ -109,5 +187,38 @@ namespace loopman
         {
             this.Close();
         }
+
+        private void bMidiPlayRecord_Click(object sender, RoutedEventArgs e)
+        {
+            if (iMidiLearn == 1)
+            {
+                bMidiPlayRecord.Background = bMidiPlayRecordDefault;
+                iMidiLearn = 0;
+                return;
+            }
+            if (iMidiLearn == 2)
+            {
+                bMidiStop.Background = bMidiStopDefault;
+            }
+            bMidiPlayRecord.Background = Brushes.Orange;
+            iMidiLearn = 1;
+        }
+
+        private void bMidiStop_Click(object sender, RoutedEventArgs e)
+        {
+            if (iMidiLearn == 2)
+            {
+                bMidiStop.Background = bMidiStopDefault;
+                iMidiLearn = 0;
+                return;
+            }
+            if (iMidiLearn == 1)
+            {
+                bMidiPlayRecord.Background = bMidiPlayRecordDefault;
+            }
+            bMidiStop.Background = Brushes.Orange;
+            iMidiLearn = 2;
+        }
+
     }
 }
