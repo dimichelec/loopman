@@ -31,6 +31,9 @@ namespace loopman
         private int inputLatencies;
         private int outputLatencies;
 
+        private WasapiCapture wasapiIn;
+        private WasapiOut wasapiOut;
+
         private MidiIn midiIn;
         private DispatcherTimer midiTimer;
         private Brush bMidiDefault;
@@ -86,15 +89,17 @@ namespace loopman
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // init controls from saved settings
-            ChangeAudioDriver(Settings.Default.AudioDriverName);
+            ChangeAudioDriver(Settings.Default.AudioInDriverName);
             ChangeMIDIDevice(Settings.Default.MIDIDriverName);
 
             // init noise gate controls
             idController.ChangeValue(idNoiseGate, Settings.Default.NoiseGateThreshold);
             idNoiseGate.Data = idController.GetArc(100 - Settings.Default.NoiseGateThreshold, 1, 8);
-            inputPatcher.SetNoiseGateThreshold(Settings.Default.NoiseGateThreshold);
+            if (inputPatcher != null)
+                inputPatcher.SetNoiseGateThreshold(Settings.Default.NoiseGateThreshold);
             idNoiseGate.Visibility = (Settings.Default.NoiseGateEnabled) ? Visibility.Visible : Visibility.Hidden;
-            inputPatcher.EnableNoiseGate(Settings.Default.NoiseGateEnabled);
+            if (inputPatcher != null)
+                inputPatcher.EnableNoiseGate(Settings.Default.NoiseGateEnabled);
 
             // init midi controller
             iMidiPlayRecord = Settings.Default.MIDIPlayRecord;
@@ -106,16 +111,16 @@ namespace loopman
 
             idController.ChangeValue(idMetroVolume, Settings.Default.MetroVolume);
             idMetroVolume.Data = idController.GetArc(100 - Settings.Default.MetroVolume);
-            inputPatcher.clickVolume = (float)(clickVolumeScale * Math.Pow(Settings.Default.MetroVolume, clickVolumeLogExp));
-
+            if (inputPatcher != null)
+                inputPatcher.clickVolume = (float)(clickVolumeScale * Math.Pow(Settings.Default.MetroVolume, clickVolumeLogExp));
             idMetroVolume.Visibility = (Settings.Default.MetroMute) ? Visibility.Hidden : Visibility.Visible;
             bMetroMute = Settings.Default.MetroMute;
 
             int i = (int)((Settings.Default.MetroPan + 1f) * 50f);
             idController.ChangeValue(idMetroPan, i);
             idMetroPan.Data = idController.GetArc(100 - i, 1);
-            inputPatcher.clickPan = Settings.Default.MetroPan;
-
+            if (inputPatcher != null)
+                inputPatcher.clickPan = Settings.Default.MetroPan;
             iTempo = int.Parse(ibTempo.Text);
             halfBeatMS = (int)(1000f * 60f / (float)iTempo / 2f);
 
@@ -131,11 +136,18 @@ namespace loopman
 
         }
 
+        private void Window_ContentRendered(object sender, EventArgs e)
+        {
+            if ((asioOut == null) && (wasapiIn == null)) Dispatcher.Invoke(() => OpenSettingsDialog());
+        }
+
         private void timServices_Tick(object sender, EventArgs e)
         {
-            if (inputPatcher.iRecordMax > 0)
-                pbMemory.Value = (int)(100f * (float)inputPatcher.iRecord / inputPatcher.iRecordMax);
-
+            if (inputPatcher != null)
+            {
+                if (inputPatcher.iRecordMax > 0)
+                    pbMemory.Value = (int)(100f * (float)inputPatcher.iRecord / inputPatcher.iRecordMax);
+            }
         }
 
 
@@ -145,7 +157,8 @@ namespace loopman
             Settings.Default.WindowTop = this.Top;
 
             // save noise gate parameters
-            Settings.Default.NoiseGateThreshold = inputPatcher.GetNoiseGateThreshold();
+            if (inputPatcher != null)
+                Settings.Default.NoiseGateThreshold = inputPatcher.GetNoiseGateThreshold();
             Settings.Default.NoiseGateEnabled = (idNoiseGate.Visibility == Visibility.Visible);
 
             // save metronome parameters
@@ -164,6 +177,7 @@ namespace loopman
             Settings.Default.Save();
 
             ResetAsio();
+            ResetWasapi();
             Application.Current.Shutdown();
         }
 
@@ -219,7 +233,10 @@ namespace loopman
         {
             ResetRecorderState();
             StopMetronome(false);
-            inputPatcher.Stop();
+            if (inputPatcher != null)
+            {
+                inputPatcher.Stop();
+            }
         }
 
         private void PressPlayRecord()
@@ -280,8 +297,78 @@ namespace loopman
             }
             catch (Exception)
             {
+                MMDeviceEnumerator deviceEnum = new();
+                MMDeviceCollection devs = deviceEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+                for (int i = 0; i < devs.Count; i++)
+                {
+                    if (devs[i].FriendlyName == Settings.Default.AudioInDriverName)
+                    {
+                        wasapiIn = new WasapiCapture(devs[i]);
+                        break;
+                    }
+                }
+
+                devs = deviceEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                for (int i = 0; i < devs.Count; i++)
+                {
+                    if (devs[i].FriendlyName == Settings.Default.AudioOutDriverName)
+                    {
+                        //wasapiOut = new WasapiOut(devs[i], );
+                        break;
+                    }
+                }
+
+                wasapiIn.DataAvailable += OnWasapiInDataAvailable;
+                wasapiIn.StartRecording();
+
+                //public WasapiProvider()
+                //{
+                //    // Init Pipes
+                //    this.recordingStream = new PipeStream();
+                //    this.LoopbackMp3Stream = new PipeStream();
+                //    this.LoopbackL16Stream = new PipeStream();
+
+                //    // Init Wave Processor thread
+                //    Thread waveProcessorThread = new Thread(new ThreadStart(this.waveProcessor)) { Priority = ThreadPriority.Highest };
+
+                //    // Init Wasapi Capture
+                //    this.loopbackWaveIn = new WasapiLoopbackCapture();
+                //    this.loopbackWaveIn.DataAvailable += new EventHandler<WaveInEventArgs>(this.loopbackWaveIn_DataAvailable);
+
+                //    // Init Raw Wav (16bit)
+                //    WaveStream rawWave16b = new Wave32To16Stream(new RawSourceWaveStream(this.recordingStream, NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(this.loopbackWaveIn.WaveFormat.SampleRate, this.loopbackWaveIn.WaveFormat.Channels)));
+
+                //    // Convert Raw Wav to PCM with audio format in settings
+                //    var audioFormat = AudioSettings.GetAudioFormat();
+                //    if (rawWave16b.WaveFormat.SampleRate == audioFormat.SampleRate
+                //        && rawWave16b.WaveFormat.BitsPerSample == audioFormat.BitsPerSample
+                //        && rawWave16b.WaveFormat.Channels == audioFormat.Channels)
+                //    {
+                //        // No conversion !
+                //        this.rawConvertedStream = null;
+                //        this.pcmStream = WaveFormatConversionStream.CreatePcmStream(rawWave16b);
+                //    }
+                //    else
+                //    {
+                //        // Resampler
+                //        this.rawConvertedStream = new WaveProviderToWaveStream(new MediaFoundationResampler(rawWave16b, audioFormat));
+                //        this.pcmStream = WaveFormatConversionStream.CreatePcmStream(rawConvertedStream);
+                //    }
+
+                //    // Init MP3 Encoder
+                //    this.mp3Writer = new LameMP3FileWriter(this.LoopbackMp3Stream, pcmStream.WaveFormat, AudioSettings.GetMP3Bitrate());
+
+                //    // Start Recording
+                //    this.loopbackWaveIn.StartRecording();
+
+                //    // Start Wave Processor thread
+                //    waveProcessorThread.Start();
+                //}
+
                 return;
             }
+
+
             if (!drv.Init(IntPtr.Zero)) return;
 
             sampleRate = (int)drv.GetSampleRate();
@@ -328,7 +415,7 @@ namespace loopman
                 {
                     Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Red; });
                     halfBeat = false;
-                    if(iCountInBeats > 0)
+                    if (iCountInBeats > 0)
                     {
                         if (++iCountBeats > iCountInBeats)
                         {
@@ -339,7 +426,7 @@ namespace loopman
                                 inputPatcher.MarkLoopStart();
                                 Dispatcher.Invoke(() => rPlayRecord.Stroke = Brushes.Red);
                                 recordingState = RecordingStates.recording;
-                            } 
+                            }
                             else if (recordingState == RecordingStates.recording)
                             {
                                 if (iCountBeats > (iRecordBeats + iCountInBeats))
@@ -368,11 +455,39 @@ namespace loopman
         }
 
 
+        private static void OnWasapiInDataAvailable(object sender, WaveInEventArgs e)
+        {
+            var erg = new byte[e.BytesRecorded];
+            for (int i = 0; i < e.BytesRecorded; i += 2)
+            {
+                var sample = (short)(e.Buffer[i] | (e.Buffer[i + 1] << 8));
+                erg[i] = (byte)((sample * amplification) & 0xff);
+                erg[i + 1] = (byte)(((sample * amplification) >> 8) & 0xff);
+
+                // Get peak for VU meter
+                if (inSampleAbs > channelPeakIn[inputChannel])
+                {
+                    channelPeakIn[inputChannel] = inSampleAbs;
+                }
+            }
+
+        }
+
+        void ResetWasapi()
+        {
+            if (wasapiIn != null)
+            {
+                wasapiIn.StopRecording();
+                wasapiIn.DataAvailable -= OnWasapiInDataAvailable;
+            }
+        }
+
         // ----------------------------------------------------------------------------
         // MIDI Driver Interface 
 
         private void ChangeMIDIDevice(string deviceName)
         {
+            if (MidiIn.NumberOfDevices == 0) return;
             int deviceId;
             for (deviceId = 0; deviceId < MidiIn.NumberOfDevices; deviceId++)
             {
@@ -398,7 +513,8 @@ namespace loopman
             if (e.RawMessage == iMidiPlayRecord)
             {
                 Dispatcher.Invoke(() => { PressPlayRecord(); });
-            } else if (e.RawMessage == iMidiStop)
+            }
+            else if (e.RawMessage == iMidiStop)
             {
                 Dispatcher.Invoke(() => { StopRecorder(); });
             }
@@ -422,7 +538,8 @@ namespace loopman
             if (useCountIn)
             {
                 iCountInBeats = int.Parse(ibCountInBeats.Text);
-            } else
+            }
+            else
             {
                 iCountInBeats = -1;
             }
@@ -445,7 +562,7 @@ namespace loopman
         {
             iTempo = int.Parse(ibTempo.Text);
             halfBeatMS = (int)(1000f * 60f / (float)iTempo / 2f);
-    }
+        }
 
         private void bMetroPlay_Click(object sender, RoutedEventArgs e)
         {
@@ -517,6 +634,11 @@ namespace loopman
 
         private void bSettings_Click(object sender, RoutedEventArgs e)
         {
+            OpenSettingsDialog();
+        }
+
+        private void OpenSettingsDialog()
+        {
             StopMetronome();
             StopRecorder();
 
@@ -525,13 +647,13 @@ namespace loopman
             SettingsWindow w = new();
             if ((bool)w.ShowDialog())
             {
-                ChangeAudioDriver(Settings.Default.AudioDriverName);
+                ChangeAudioDriver(Settings.Default.AudioInDriverName);
 
                 iMidiPlayRecord = Settings.Default.MIDIPlayRecord;
                 iMidiStop = Settings.Default.MIDIStop;
             }
             ChangeMIDIDevice(Settings.Default.MIDIDriverName);
-
         }
+
     }
 }

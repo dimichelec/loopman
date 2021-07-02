@@ -7,7 +7,7 @@
         xmlns:uc="clr-namespace:loopman"
         mc:Ignorable="d"
         Closing="MainWindow_Closing" SizeToContent="WidthAndHeight"
-        Title="Loopman" Loaded="Window_Loaded" ResizeMode="CanMinimize">
+        Title="Loopman" Loaded="Window_Loaded" ResizeMode="CanMinimize" ContentRendered="Window_ContentRendered">
     <Window.Resources>
         <Style TargetType="{x:Type ComboBox}">
             <Style.Triggers>

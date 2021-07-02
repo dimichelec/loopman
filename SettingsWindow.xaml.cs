@@ -15,6 +15,8 @@ using System.Windows.Shapes;
 using NAudio.Wave;
 using NAudio.Wave.Asio;
 using NAudio.Midi;
+using NAudio.CoreAudioApi;
+
 
 
 namespace loopman
@@ -32,15 +34,31 @@ namespace loopman
         private int iMidiPlayRecord;
         private int iMidiStop;
 
-
         public SettingsWindow()
         {
             InitializeComponent();
 
             LoadDeviceLists();
 
-            cbDevice.Text = Settings.Default.AudioDriverName;
-            cbMidiDevice.Text = Settings.Default.MIDIDriverName;
+            if (Settings.Default.AudioInDriverName != "")
+            {
+                if ((_ = cbDeviceIn.FindName(Settings.Default.AudioInDriverName)) != null)
+                    cbDeviceIn.Text = Settings.Default.AudioInDriverName;
+            }
+
+            if (Settings.Default.AudioOutDriverName != "")
+            {
+                if ((_ = cbDeviceOut.FindName(Settings.Default.AudioOutDriverName)) != null)
+                    cbDeviceOut.Text = Settings.Default.AudioOutDriverName;
+            }
+
+            if (Settings.Default.MIDIDriverName != "")
+            {
+                if ((_ = cbMidiDevice.FindName(Settings.Default.MIDIDriverName)) != null)
+                    cbMidiDevice.Text = Settings.Default.MIDIDriverName;
+            }
+
+            ChangeMIDIDevice(Settings.Default.MIDIDriverName);
 
             bMidiPlayRecordDefault = bMidiPlayRecord.Background;
             bMidiStopDefault = bMidiStop.Background;
@@ -58,8 +76,8 @@ namespace loopman
         private void LoadDeviceLists()
         {
             // audio devices
-            cbDevice.SelectedItem = -1;
-            cbDevice.Items.Clear();
+            cbDeviceIn.SelectedItem = -1;
+            cbDeviceIn.Items.Clear();
 
             foreach (string name in AsioOut.GetDriverNames())
             {
@@ -68,11 +86,40 @@ namespace loopman
                 if (!s.Contains("asio", StringComparison.OrdinalIgnoreCase)) s += " ASIO";
                 o.Content = s;
                 if (!TestAudioDriver(name)) { o.IsEnabled = false; }
-                _ = cbDevice.Items.Add(o);
+                _ = cbDeviceIn.Items.Add(o);
             }
 
-            if (cbDevice.Items.Count > 0)
-                cbDevice.Text = cbDevice.Items[0].ToString();
+            if (cbDeviceIn.Items.Count > 0)
+            {
+                cbDeviceIn.Text = cbDeviceIn.Items[0].ToString();
+            }
+            else
+            {
+                // no ASIO devices present
+                MMDeviceEnumerator deviceEnum = new();
+                MMDeviceCollection devicesIn = deviceEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active); //.ToList();
+
+                for (int i = 0; i < devicesIn.Count; i++)
+                {
+                    ComboBoxItem o = new ComboBoxItem();
+                    o.Content = devicesIn[i].FriendlyName;
+                    //if (!TestAudioDriver(name)) o.IsEnabled = false;
+                    cbDeviceIn.Items.Add(o);
+                }
+                if (cbDeviceIn.Items.Count > 0)
+                    cbDeviceIn.Text = ((ComboBoxItem)cbDeviceIn.Items[0]).Content.ToString();
+
+                MMDeviceCollection devicesOut = deviceEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active); //.ToList();
+                for (int i = 0; i < devicesOut.Count; i++)
+                {
+                    ComboBoxItem o = new ComboBoxItem();
+                    o.Content = devicesOut[i].FriendlyName;
+                    //if (!TestAudioDriver(name)) o.IsEnabled = false;
+                    cbDeviceOut.Items.Add(o);
+                }
+                if (cbDeviceOut.Items.Count > 0)
+                    cbDeviceOut.Text = ((ComboBoxItem)cbDeviceOut.Items[0]).Content.ToString();
+            }
 
             // midi devices
             cbMidiDevice.SelectedItem = -1;
@@ -88,6 +135,8 @@ namespace loopman
 
             if (cbMidiDevice.Items.Count > 0)
                 cbMidiDevice.Text = cbMidiDevice.Items[0].ToString();
+            else
+                cbMidiDevice.IsEnabled = false;
         }
 
         private bool TestAudioDriver(string driverName)
@@ -107,9 +156,14 @@ namespace loopman
         }
 
 
-        private void cbDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void cbDeviceIn_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            //cbDevice.Text = driverName;
+
+        }
+
+        private void cbDeviceOut_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
         }
 
         private void cbMidiDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -123,6 +177,11 @@ namespace loopman
 
         private void ChangeMIDIDevice(string deviceName)
         {
+            bMidiPlayRecord.IsEnabled = false;
+            bMidiStop.IsEnabled = false;
+
+            if (deviceName == "") return;
+
             int deviceId;
             for (deviceId = 0; deviceId < MidiIn.NumberOfDevices; deviceId++)
             {
@@ -136,6 +195,9 @@ namespace loopman
             midiIn.MessageReceived += MidiReceived;
             midiIn.ErrorReceived += MidiError;
             midiIn.Start();
+
+            bMidiPlayRecord.IsEnabled = true;
+            bMidiStop.IsEnabled = true;
         }
 
         private void MidiReceived(object sender, MidiInMessageEventArgs e)
@@ -174,8 +236,10 @@ namespace loopman
 
         private void bOK_Click(object sender, RoutedEventArgs e)
         {
-            Settings.Default.AudioDriverName = ((ComboBoxItem)cbDevice.SelectedItem).Content.ToString();
-            Settings.Default.MIDIDriverName = ((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString();
+            Settings.Default.AudioInDriverName = (cbDeviceIn.SelectedItem != null) ? ((ComboBoxItem)cbDeviceIn.SelectedItem).Content.ToString() : "";
+            Settings.Default.AudioOutDriverName = (cbDeviceOut.SelectedItem != null) ? ((ComboBoxItem)cbDeviceOut.SelectedItem).Content.ToString() : "";
+
+            Settings.Default.MIDIDriverName = (cbMidiDevice.SelectedItem != null) ? ((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString() : "";
 
             Settings.Default.MIDIPlayRecord = iMidiPlayRecord;
             Settings.Default.MIDIStop = iMidiStop;

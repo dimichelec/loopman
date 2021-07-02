@@ -2,7 +2,7 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="loopman" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
-    <Setting Name="AudioDriverName" Type="System.String" Scope="User">
+    <Setting Name="AudioInDriverName" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="Tempo" Type="System.Int32" Scope="User">
@@ -52,6 +52,9 @@
     </Setting>
     <Setting Name="NoiseGateEnabled" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="AudioOutDriverName" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
     </Setting>
   </Settings>
 </SettingsFile>

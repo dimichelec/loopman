@@ -26,12 +26,12 @@ namespace loopman {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string AudioDriverName {
+        public string AudioInDriverName {
             get {
-                return ((string)(this["AudioDriverName"]));
+                return ((string)(this["AudioInDriverName"]));
             }
             set {
-                this["AudioDriverName"] = value;
+                this["AudioInDriverName"] = value;
             }
         }
         
@@ -224,6 +224,18 @@ namespace loopman {
             }
             set {
                 this["NoiseGateEnabled"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string AudioOutDriverName {
+            get {
+                return ((string)(this["AudioOutDriverName"]));
+            }
+            set {
+                this["AudioOutDriverName"] = value;
             }
         }
     }

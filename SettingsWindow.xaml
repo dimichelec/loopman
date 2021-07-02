@@ -6,32 +6,33 @@
         xmlns:local="clr-namespace:loopman"
         mc:Ignorable="d"
         Title="SettingsWindow" SizeToContent="WidthAndHeight" ResizeMode="NoResize" Closing="Window_Closing">
-    <Grid Width="394" Height="227">
+    <Grid Width="410" Height="227">
         <Grid.RowDefinitions>
-            <RowDefinition Height="15*" MinHeight="45"/>
-            <RowDefinition Height="15*" MinHeight="45"/>
-            <RowDefinition Height="15*"/>
-            <RowDefinition Height="19*"/>
+            <RowDefinition Height="79"/>
+            <RowDefinition Height="45"/>
+            <RowDefinition Height="45"/>
+            <RowDefinition/>
             <RowDefinition Height="35"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="52*"/>
-            <ColumnDefinition Width="45*"/>
+            <ColumnDefinition Width="89*"/>
+            <ColumnDefinition Width="121*"/>
             <ColumnDefinition Width="100"/>
             <ColumnDefinition Width="100"/>
         </Grid.ColumnDefinitions>
-        <TextBlock HorizontalAlignment="Left" Text="Device" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Margin="5,0,0,0" Height="15" Width="89"/>
-        <ComboBox x:Name="cbDevice" SelectionChanged="cbDevice_SelectionChanged" Margin="5,10,10,10" Grid.ColumnSpan="3" Grid.Column="1"/>
+        <TextBlock HorizontalAlignment="Left" Text="Audio" TextWrapping="Wrap" VerticalAlignment="Top" FontWeight="Normal" Margin="5,10,0,0" Height="15" Width="89" Grid.ColumnSpan="2"/>
+        <ComboBox x:Name="cbDeviceIn" SelectionChanged="cbDeviceIn_SelectionChanged" Margin="5,10,5,0" Grid.ColumnSpan="3" Grid.Column="1" Height="25" VerticalAlignment="Top"/>
+        <ComboBox x:Name="cbDeviceOut" SelectionChanged="cbDeviceOut_SelectionChanged" Margin="5,0,5,10" Grid.ColumnSpan="3" Grid.Column="1" Height="25" VerticalAlignment="Bottom"/>
 
         <Rectangle Grid.Row="1" Grid.ColumnSpan="4" Fill="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" StrokeThickness="0"/>
-        <TextBlock HorizontalAlignment="Left" Text="MIDI" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Grid.Row="1" Margin="5,0,0,0" Height="15" Width="89"/>
-        <ComboBox x:Name="cbMidiDevice" SelectionChanged="cbMidiDevice_SelectionChanged" Grid.Row="1" Margin="5,10,10,10" Grid.ColumnSpan="3" Grid.Column="1"/>
+        <TextBlock HorizontalAlignment="Left" Text="MIDI" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Grid.Row="1" Margin="5,0,0,0" Height="15" Width="89" Grid.ColumnSpan="2"/>
+        <ComboBox x:Name="cbMidiDevice" SelectionChanged="cbMidiDevice_SelectionChanged" Grid.Row="1" Margin="5,10,5,10" Grid.ColumnSpan="3" Grid.Column="1"/>
 
-        <TextBlock HorizontalAlignment="Left" Text="MIDI Mapping" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Grid.Row="2" Margin="5,0,0,0" Width="89"/>
-        <Button x:Name="bMidiPlayRecord" Content="►/●" Padding="1,0,1,1" FontSize="14" FontWeight="Bold" Click="bMidiPlayRecord_Click" FontFamily="Arial Black" Grid.Row="2" Grid.Column="2" Margin="10,5,10,0" VerticalAlignment="Top" Height="19"/>
-        <TextBlock x:Name="tbMidiPlayRecordMap" HorizontalAlignment="Stretch" Text="---" VerticalAlignment="Bottom" FontWeight="Normal" Grid.Row="2" Margin="0,0,0,3" Width="89" Grid.Column="2" Foreground="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" TextAlignment="Center"/>
-        <Button x:Name="bMidiStop" Content="■" Padding="0,-6,1,1" FontSize="20" FontWeight="Bold" Click="bMidiStop_Click" FontFamily="Arial Black" BorderThickness="1,1,1,1" UseLayoutRounding="False" Grid.Row="2" Grid.Column="3" Margin="10,5,10,0" Height="19" VerticalAlignment="Top"/>
-        <TextBlock x:Name="tbMidiStopMap" HorizontalAlignment="Stretch" Text="---" VerticalAlignment="Bottom" FontWeight="Normal" Grid.Row="2" Margin="0,0,0,3" Width="89" Grid.Column="3" Foreground="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" TextAlignment="Center"/>
+        <TextBlock HorizontalAlignment="Left" Text="MIDI Mapping" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Grid.Row="2" Margin="5,0,0,0" Width="89" Height="16" Grid.ColumnSpan="2"/>
+        <Button x:Name="bMidiPlayRecord" Content="►/●" Padding="1,0,1,1" FontSize="14" FontWeight="Bold" Click="bMidiPlayRecord_Click" FontFamily="Arial Black" Grid.Row="2" Grid.Column="2" Margin="5,5,5,0" VerticalAlignment="Top" Height="19"/>
+        <TextBlock x:Name="tbMidiPlayRecordMap" Text="---" VerticalAlignment="Top" FontWeight="Normal" Grid.Row="2" Margin="6,29,6,0" Grid.Column="2" Foreground="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" TextAlignment="Center" Height="16"/>
+        <Button x:Name="bMidiStop" Content="■" Padding="0,-6,1,1" FontSize="20" FontWeight="Bold" Click="bMidiStop_Click" FontFamily="Arial Black" BorderThickness="1,1,1,1" UseLayoutRounding="False" Grid.Row="2" Grid.Column="3" Margin="5,5,5,0" Height="19" VerticalAlignment="Top"/>
+        <TextBlock x:Name="tbMidiStopMap" Text="---" VerticalAlignment="Top" FontWeight="Normal" Grid.Row="2" Margin="6,29,6,0" Grid.Column="3" Foreground="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" TextAlignment="Center" Height="16"/>
 
         <Button x:Name="bCancel" Content="Cancel" Margin="5,5,5,5" Grid.Row="4" Padding="1,1,1,1" IsCancel="True" Grid.Column="2" Click="bCancel_Click"/>
         <Button x:Name="bOK" Content="OK" Margin="5,5,5,5" Grid.Row="4" Padding="1,1,1,1" IsDefault="True" Grid.Column="3" Click="bOK_Click"/>
