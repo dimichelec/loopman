@@ -22,7 +22,7 @@
         </Grid.ColumnDefinitions>
         <TextBlock HorizontalAlignment="Left" Text="Audio" TextWrapping="Wrap" VerticalAlignment="Top" FontWeight="Normal" Margin="5,10,0,0" Height="15" Width="89" Grid.ColumnSpan="2"/>
         <ComboBox x:Name="cbDeviceIn" SelectionChanged="cbDeviceIn_SelectionChanged" Margin="5,10,5,0" Grid.ColumnSpan="3" Grid.Column="1" Height="25" VerticalAlignment="Top"/>
-        <ComboBox x:Name="cbDeviceOut" SelectionChanged="cbDeviceOut_SelectionChanged" Margin="5,0,5,10" Grid.ColumnSpan="3" Grid.Column="1" Height="25" VerticalAlignment="Bottom"/>
+        <ComboBox x:Name="cbDeviceOut" Margin="5,0,5,10" Grid.ColumnSpan="3" Grid.Column="1" Height="25" VerticalAlignment="Bottom"/>
 
         <Rectangle Grid.Row="1" Grid.ColumnSpan="4" Fill="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" StrokeThickness="0"/>
         <TextBlock HorizontalAlignment="Left" Text="MIDI" TextWrapping="Wrap" VerticalAlignment="Center" FontWeight="Normal" Grid.Row="1" Margin="5,0,0,0" Height="15" Width="89" Grid.ColumnSpan="2"/>

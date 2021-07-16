@@ -32,7 +32,7 @@ namespace loopman
         private int ResetCount;
         private const int ResetCountMax = 5;
 
-        private AsioInputPatcher inputPatcher = null;
+        private InputPatcher inputPatcher = null;
 
 
         public VUMeterController(
@@ -55,7 +55,7 @@ namespace loopman
             ResetCount = ResetCountMax;
         }
 
-        public void SetPatcher(AsioInputPatcher patcher)
+        public void SetPatcher(InputPatcher patcher)
         {
             inputPatcher = patcher;
         }
@@ -90,7 +90,6 @@ namespace loopman
                     rInRight.Fill = rDefaultBrush;
             }
 
-
             peak = inputPatcher.channelPeakOut[0];
             pbOutLeft.Value = peak;
             if (peak >= 0.95f)
@@ -116,7 +115,6 @@ namespace loopman
                 if (--iRedPersistRight == 0)
                     rOutRight.Fill = rDefaultBrush;
             }
-
 
             if (--ResetCount <= 0)
             {

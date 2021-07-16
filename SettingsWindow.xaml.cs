@@ -1,22 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 using NAudio.Wave;
 using NAudio.Wave.Asio;
 using NAudio.Midi;
 using NAudio.CoreAudioApi;
-
 
 
 namespace loopman
@@ -26,7 +16,6 @@ namespace loopman
     /// </summary>
     public partial class SettingsWindow : Window
     {
-
         private MidiIn midiIn;
         private Brush bMidiPlayRecordDefault;
         private Brush bMidiStopDefault;
@@ -34,28 +23,26 @@ namespace loopman
         private int iMidiPlayRecord;
         private int iMidiStop;
 
+
         public SettingsWindow()
         {
             InitializeComponent();
 
             LoadDeviceLists();
 
-            if (Settings.Default.AudioInDriverName != "")
+            if ((Settings.Default.AudioInDriverName != "") && (FindInContent(cbDeviceIn, Settings.Default.AudioInDriverName) >= 0))
             {
-                if ((_ = cbDeviceIn.FindName(Settings.Default.AudioInDriverName)) != null)
-                    cbDeviceIn.Text = Settings.Default.AudioInDriverName;
+                cbDeviceIn.Text = Settings.Default.AudioInDriverName;
             }
 
-            if (Settings.Default.AudioOutDriverName != "")
+            if ((Settings.Default.AudioOutDriverName != "") && (FindInContent(cbDeviceOut, Settings.Default.AudioOutDriverName) >= 0))
             {
-                if ((_ = cbDeviceOut.FindName(Settings.Default.AudioOutDriverName)) != null)
-                    cbDeviceOut.Text = Settings.Default.AudioOutDriverName;
+                cbDeviceOut.Text = Settings.Default.AudioOutDriverName;
             }
 
-            if (Settings.Default.MIDIDriverName != "")
+            if ((Settings.Default.MIDIDriverName != "") && (FindInContent(cbMidiDevice, Settings.Default.MIDIDriverName) >= 0))
             {
-                if ((_ = cbMidiDevice.FindName(Settings.Default.MIDIDriverName)) != null)
-                    cbMidiDevice.Text = Settings.Default.MIDIDriverName;
+                cbMidiDevice.Text = Settings.Default.MIDIDriverName;
             }
 
             ChangeMIDIDevice(Settings.Default.MIDIDriverName);
@@ -69,7 +56,7 @@ namespace loopman
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            if (midiIn != null) midiIn.Dispose();
+            if (midiIn != null) { midiIn.Dispose(); }
 
         }
 
@@ -79,46 +66,75 @@ namespace loopman
             cbDeviceIn.SelectedItem = -1;
             cbDeviceIn.Items.Clear();
 
+            cbDeviceOut.SelectedItem = -1;
+            cbDeviceOut.Items.Clear();
+
             foreach (string name in AsioOut.GetDriverNames())
             {
-                ComboBoxItem o = new ComboBoxItem();
+                ComboBoxItem o = new();
                 string s = name;
                 if (!s.Contains("asio", StringComparison.OrdinalIgnoreCase)) s += " ASIO";
                 o.Content = s;
                 if (!TestAudioDriver(name)) { o.IsEnabled = false; }
                 _ = cbDeviceIn.Items.Add(o);
+                //if (o.IsEnabled) {
+                //    ComboBoxItem p = new();
+                //    p.Content = s;
+                //    _ = cbDeviceOut.Items.Add(p);
+                //}
             }
 
-            if (cbDeviceIn.Items.Count > 0)
+            MMDeviceEnumerator deviceEnum = new();
+            MMDeviceCollection devicesIn = deviceEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active); //.ToList();
+
+            for (int i = 0; i < devicesIn.Count; i++)
             {
-                cbDeviceIn.Text = cbDeviceIn.Items[0].ToString();
+                ComboBoxItem o = new ComboBoxItem();
+                o.Content = devicesIn[i].FriendlyName;
+                //if (!TestAudioDriver(name)) o.IsEnabled = false;
+                _ = cbDeviceIn.Items.Add(o);
             }
-            else
+
+            foreach (ComboBoxItem dev in cbDeviceIn.Items)
             {
-                // no ASIO devices present
-                MMDeviceEnumerator deviceEnum = new();
-                MMDeviceCollection devicesIn = deviceEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active); //.ToList();
-
-                for (int i = 0; i < devicesIn.Count; i++)
+                if (dev.IsEnabled)
                 {
-                    ComboBoxItem o = new ComboBoxItem();
-                    o.Content = devicesIn[i].FriendlyName;
-                    //if (!TestAudioDriver(name)) o.IsEnabled = false;
-                    cbDeviceIn.Items.Add(o);
+                    cbDeviceIn.Text = dev.Content.ToString();
+                    break;
                 }
-                if (cbDeviceIn.Items.Count > 0)
-                    cbDeviceIn.Text = ((ComboBoxItem)cbDeviceIn.Items[0]).Content.ToString();
+            }
 
-                MMDeviceCollection devicesOut = deviceEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active); //.ToList();
-                for (int i = 0; i < devicesOut.Count; i++)
+            MMDeviceCollection devicesOut = deviceEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active); //.ToList();
+            for (int i = 0; i < devicesOut.Count; i++)
+            {
+                ComboBoxItem o = new ComboBoxItem();
+                o.Content = devicesOut[i].FriendlyName;
+                //if (!TestAudioDriver(name)) o.IsEnabled = false;
+                _ = cbDeviceOut.Items.Add(o);
+            }
+
+            foreach (ComboBoxItem dev in cbDeviceOut.Items)
+            {
+                if (dev.IsEnabled)
                 {
-                    ComboBoxItem o = new ComboBoxItem();
-                    o.Content = devicesOut[i].FriendlyName;
-                    //if (!TestAudioDriver(name)) o.IsEnabled = false;
-                    cbDeviceOut.Items.Add(o);
+                    if (cbDeviceIn.Text.Contains("asio", StringComparison.OrdinalIgnoreCase) && (dev.Content.ToString() == cbDeviceIn.Text))
+                    {
+                        cbDeviceOut.Text = dev.Content.ToString();
+                        break;
+                    }
                 }
-                if (cbDeviceOut.Items.Count > 0)
-                    cbDeviceOut.Text = ((ComboBoxItem)cbDeviceOut.Items[0]).Content.ToString();
+            }
+
+            if (cbDeviceOut.Text == "")
+            {
+                foreach (ComboBoxItem dev in cbDeviceOut.Items)
+                {
+                    if (dev.IsEnabled)
+                    {
+                        cbDeviceOut.Text = dev.Content.ToString();
+                        break;
+                    }
+                }
             }
 
             // midi devices
@@ -133,10 +149,15 @@ namespace loopman
                 cbMidiDevice.Items.Add(o);
             }
 
-            if (cbMidiDevice.Items.Count > 0)
-                cbMidiDevice.Text = cbMidiDevice.Items[0].ToString();
-            else
+            if (cbMidiDevice.Items.Count == 0)
+            {
                 cbMidiDevice.IsEnabled = false;
+            }
+            else
+            {
+                cbMidiDevice.Text = ((ComboBoxItem)cbMidiDevice.Items[0]).Content.ToString();
+            }
+                
         }
 
         private bool TestAudioDriver(string driverName)
@@ -150,25 +171,20 @@ namespace loopman
             {
                 return false;
             }
-            if (!driver.Init(IntPtr.Zero)) return false;
+            if (!driver.Init(IntPtr.Zero)) { return false; }
             driver.ReleaseComAsioDriver();
             return true;
         }
 
-
-        private void cbDeviceIn_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private int FindInContent(ComboBox cb, string s)
         {
-
-        }
-
-        private void cbDeviceOut_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-
-        }
-
-        private void cbMidiDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ChangeMIDIDevice(((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString());
+            int i = 0;
+            foreach (ComboBoxItem dev in cb.Items)
+            {
+                if (dev.Content.ToString() == s) { return i; }
+                i++;
+            }
+            return -1;
         }
 
 
@@ -232,7 +248,7 @@ namespace loopman
 
 
         // ----------------------------------------------------------------------------
-
+        // Control Event Handlers
 
         private void bOK_Click(object sender, RoutedEventArgs e)
         {
@@ -250,6 +266,18 @@ namespace loopman
         private void bCancel_Click(object sender, RoutedEventArgs e)
         {
             this.Close();
+        }
+
+        private void cbDeviceIn_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            cbDeviceOut.Visibility =
+                (cbDeviceIn.SelectedItem.ToString().Contains("asio", StringComparison.OrdinalIgnoreCase)) ?
+                Visibility.Hidden : Visibility.Visible;
+        }
+
+        private void cbMidiDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ChangeMIDIDevice(((ComboBoxItem)cbMidiDevice.SelectedItem).Content.ToString());
         }
 
         private void bMidiPlayRecord_Click(object sender, RoutedEventArgs e)

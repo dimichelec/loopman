@@ -6,16 +6,15 @@ using System.Windows.Media;
 using System.Diagnostics;
 using System.Management;
 using System.Windows.Threading;
-using System.Threading;
 using System.Windows.Shapes;
-using System.Configuration;
-using System.ComponentModel;
 
 using NAudio.Wave;
 using NAudio.Wave.Asio;
 using NAudio.Wave.SampleProviders;
 using NAudio.Midi;
 using NAudio.CoreAudioApi;
+using NAudio.Utils;
+
 
 namespace loopman
 {
@@ -26,13 +25,14 @@ namespace loopman
     public partial class MainWindow : Window
     {
         private AsioOut asioOut;
-        private AsioInputPatcher inputPatcher;
-        private int sampleRate = -1;
+        private InputPatcher inputPatcher;
         private int inputLatencies;
         private int outputLatencies;
 
         private WasapiCapture wasapiIn;
         private WasapiOut wasapiOut;
+
+        private Brush bMonoInputDefault;
 
         private MidiIn midiIn;
         private DispatcherTimer midiTimer;
@@ -51,9 +51,7 @@ namespace loopman
         private bool halfBeat;
         private int iRecordBeats;
 
-
         private readonly Stopwatch timecheck = new();
-
 
         private const double clickVolumeLogExp = 2.718;
         private float clickVolumeScale = (float)(1 / Math.Pow(100, clickVolumeLogExp));
@@ -129,27 +127,21 @@ namespace loopman
             ibRecordBeats.Text = Settings.Default.RecordBeats.ToString();
             rPlayRecord.Stroke = Brushes.Transparent;
 
+            bMonoInputDefault = bMonoInput.Foreground;
+            if (inputPatcher != null)
+                inputPatcher.MonoRouting = Settings.Default.MonoInput;
+            if (Settings.Default.MonoInput) { bMonoInput.Foreground = Brushes.Green; }
+
             DispatcherTimer timServices = new DispatcherTimer();
             timServices.Tick += timServices_Tick;
             timServices.Interval = new TimeSpan(1000); // 100nS units
             timServices.Start();
-
         }
 
         private void Window_ContentRendered(object sender, EventArgs e)
         {
             if ((asioOut == null) && (wasapiIn == null)) Dispatcher.Invoke(() => OpenSettingsDialog());
         }
-
-        private void timServices_Tick(object sender, EventArgs e)
-        {
-            if (inputPatcher != null)
-            {
-                if (inputPatcher.iRecordMax > 0)
-                    pbMemory.Value = (int)(100f * (float)inputPatcher.iRecord / inputPatcher.iRecordMax);
-            }
-        }
-
 
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
@@ -158,7 +150,10 @@ namespace loopman
 
             // save noise gate parameters
             if (inputPatcher != null)
+            {
                 Settings.Default.NoiseGateThreshold = inputPatcher.GetNoiseGateThreshold();
+                Settings.Default.MonoInput = inputPatcher.MonoRouting;
+            }
             Settings.Default.NoiseGateEnabled = (idNoiseGate.Visibility == Visibility.Visible);
 
             // save metronome parameters
@@ -181,22 +176,6 @@ namespace loopman
             Application.Current.Shutdown();
         }
 
-        private void FocusOnNext(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                TraversalRequest request = new TraversalRequest(FocusNavigationDirection.Next);
-                MoveFocus(request);
-            }
-        }
-
-        private void SelectAll(object sender, RoutedEventArgs e)
-        {
-            TextBox tb = (TextBox)sender;
-            tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
-        }
-
-
         // ----------------------------------------------------------------------------
 
         public static void GetDevices()
@@ -213,6 +192,15 @@ namespace loopman
                 {
                     Debug.WriteLine($"{p.Name}:{p.Value}");
                 }
+            }
+        }
+
+        private void timServices_Tick(object sender, EventArgs e)
+        {
+            if (inputPatcher != null)
+            {
+                if (inputPatcher.iRecordMax > 0)
+                    pbMemory.Value = (int)(100f * (float)inputPatcher.iRecord / inputPatcher.iRecordMax);
             }
         }
 
@@ -283,8 +271,9 @@ namespace loopman
         {
             // reset things
             ResetAsio();
+            ResetWasapi();
             if (vuMeter != null) vuMeter.SetPatcher(null);
-            sampleRate = inputLatencies = outputLatencies = 0;
+            inputLatencies = outputLatencies = 0;
 
             if (driverName == null) return;
             if (driverName == "") return;
@@ -294,6 +283,21 @@ namespace loopman
             try
             {
                 drv = AsioDriver.GetAsioDriverByName(driverName);
+
+                if (!drv.Init(IntPtr.Zero)) return;
+
+                drv.GetLatencies(out inputLatencies, out outputLatencies);
+
+                // open output device
+                asioOut = new AsioOut(driverName);
+                asioOut.InputChannelOffset = 0;
+                asioOut.ChannelOffset = 0;
+
+                inputPatcher = new InputPatcher((int)drv.GetSampleRate(), 2, 2);  //(int)sampleRate, 2, 2);
+
+                asioOut.AudioAvailable += OnAsioOutAudioAvailable;
+                asioOut.InitRecordAndPlayback(new SampleToWaveProvider(inputPatcher), 2, 0);
+                asioOut.Play();
             }
             catch (Exception)
             {
@@ -303,87 +307,32 @@ namespace loopman
                 {
                     if (devs[i].FriendlyName == Settings.Default.AudioInDriverName)
                     {
-                        wasapiIn = new WasapiCapture(devs[i]);
+                        wasapiIn = new(devs[i]); //new WasapiCapture(devs[i]);
+                        wasapiIn.ShareMode = AudioClientShareMode.Shared;
                         break;
                     }
                 }
-
+                
                 devs = deviceEnum.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
                 for (int i = 0; i < devs.Count; i++)
                 {
                     if (devs[i].FriendlyName == Settings.Default.AudioOutDriverName)
                     {
-                        //wasapiOut = new WasapiOut(devs[i], );
+                        wasapiOut = new WasapiOut(devs[i], AudioClientShareMode.Shared, true, 10);
                         break;
                     }
                 }
+                
+                bwp = new BufferedWaveProvider(wasapiIn.WaveFormat);
+                bwp.DiscardOnBufferOverflow = true;
+
+                inputPatcher = new InputPatcher((int)wasapiIn.WaveFormat.SampleRate, 2, 2);
 
                 wasapiIn.DataAvailable += OnWasapiInDataAvailable;
+                wasapiOut.Init(bwp);
                 wasapiIn.StartRecording();
-
-                //public WasapiProvider()
-                //{
-                //    // Init Pipes
-                //    this.recordingStream = new PipeStream();
-                //    this.LoopbackMp3Stream = new PipeStream();
-                //    this.LoopbackL16Stream = new PipeStream();
-
-                //    // Init Wave Processor thread
-                //    Thread waveProcessorThread = new Thread(new ThreadStart(this.waveProcessor)) { Priority = ThreadPriority.Highest };
-
-                //    // Init Wasapi Capture
-                //    this.loopbackWaveIn = new WasapiLoopbackCapture();
-                //    this.loopbackWaveIn.DataAvailable += new EventHandler<WaveInEventArgs>(this.loopbackWaveIn_DataAvailable);
-
-                //    // Init Raw Wav (16bit)
-                //    WaveStream rawWave16b = new Wave32To16Stream(new RawSourceWaveStream(this.recordingStream, NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(this.loopbackWaveIn.WaveFormat.SampleRate, this.loopbackWaveIn.WaveFormat.Channels)));
-
-                //    // Convert Raw Wav to PCM with audio format in settings
-                //    var audioFormat = AudioSettings.GetAudioFormat();
-                //    if (rawWave16b.WaveFormat.SampleRate == audioFormat.SampleRate
-                //        && rawWave16b.WaveFormat.BitsPerSample == audioFormat.BitsPerSample
-                //        && rawWave16b.WaveFormat.Channels == audioFormat.Channels)
-                //    {
-                //        // No conversion !
-                //        this.rawConvertedStream = null;
-                //        this.pcmStream = WaveFormatConversionStream.CreatePcmStream(rawWave16b);
-                //    }
-                //    else
-                //    {
-                //        // Resampler
-                //        this.rawConvertedStream = new WaveProviderToWaveStream(new MediaFoundationResampler(rawWave16b, audioFormat));
-                //        this.pcmStream = WaveFormatConversionStream.CreatePcmStream(rawConvertedStream);
-                //    }
-
-                //    // Init MP3 Encoder
-                //    this.mp3Writer = new LameMP3FileWriter(this.LoopbackMp3Stream, pcmStream.WaveFormat, AudioSettings.GetMP3Bitrate());
-
-                //    // Start Recording
-                //    this.loopbackWaveIn.StartRecording();
-
-                //    // Start Wave Processor thread
-                //    waveProcessorThread.Start();
-                //}
-
-                return;
+                wasapiOut.Play();
             }
-
-
-            if (!drv.Init(IntPtr.Zero)) return;
-
-            sampleRate = (int)drv.GetSampleRate();
-            drv.GetLatencies(out inputLatencies, out outputLatencies);
-
-            // open output device
-            asioOut = new AsioOut(driverName);
-            asioOut.InputChannelOffset = 0;
-            asioOut.ChannelOffset = 0;
-
-            inputPatcher = new AsioInputPatcher((int)sampleRate, 2, 2);
-
-            asioOut.AudioAvailable += OnAsioOutAudioAvailable;
-            asioOut.InitRecordAndPlayback(new SampleToWaveProvider(inputPatcher), 2, 0);
-            asioOut.Play();
 
             vuMeter.SetPatcher(inputPatcher);
 
@@ -397,7 +346,7 @@ namespace loopman
 
         void OnAsioOutAudioAvailable(object sender, AsioAudioAvailableEventArgs e)
         {
-            inputPatcher.ProcessBuffer(
+            inputPatcher.ProcessASIOBuffer(
                 e.InputBuffers, e.OutputBuffers,
                 e.SamplesPerBuffer, e.AsioSampleType
             );
@@ -447,6 +396,7 @@ namespace loopman
 
         void ResetAsio()
         {
+            timecheck.Stop();
             if (asioOut != null)
             {
                 asioOut.Stop();
@@ -454,20 +404,52 @@ namespace loopman
             }
         }
 
+        private float tmp = 0.0f;
 
-        private static void OnWasapiInDataAvailable(object sender, WaveInEventArgs e)
+        private BufferedWaveProvider bwp;
+
+        private void OnWasapiInDataAvailable(object sender, WaveInEventArgs e)
         {
-            var erg = new byte[e.BytesRecorded];
-            for (int i = 0; i < e.BytesRecorded; i += 2)
-            {
-                var sample = (short)(e.Buffer[i] | (e.Buffer[i + 1] << 8));
-                erg[i] = (byte)((sample * amplification) & 0xff);
-                erg[i + 1] = (byte)(((sample * amplification) >> 8) & 0xff);
 
-                // Get peak for VU meter
-                if (inSampleAbs > channelPeakIn[inputChannel])
+            inputPatcher.ProcessWasapiBuffer(e.Buffer, e.BytesRecorded, bwp);
+
+            if (bMetroPlaying && (timecheck.ElapsedMilliseconds >= halfBeatMS))
+            {
+                // we're running, ready, and a new haf-beat has elapsed
+                timecheck.Restart();
+                if (!halfBeat)
                 {
-                    channelPeakIn[inputChannel] = inSampleAbs;
+                    Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Transparent; });
+                    halfBeat = true;
+                }
+                else
+                {
+                    Dispatcher.Invoke(() => { eBeat.Fill = Brushes.Red; });
+                    halfBeat = false;
+                    if (iCountInBeats > 0)
+                    {
+                        if (++iCountBeats > iCountInBeats)
+                        {
+                            bCountingIn = false;
+
+                            if (recordingState == RecordingStates.armed)
+                            {
+                                inputPatcher.MarkLoopStart();
+                                Dispatcher.Invoke(() => rPlayRecord.Stroke = Brushes.Red);
+                                recordingState = RecordingStates.recording;
+                            }
+                            else if (recordingState == RecordingStates.recording)
+                            {
+                                if (iCountBeats > (iRecordBeats + iCountInBeats))
+                                {
+                                    Dispatcher.Invoke(() => PressPlayRecord());
+                                }
+                            }
+
+
+                        }
+                    }
+                    if (!bMetroMute && bCountingIn && bMetroClick) inputPatcher.Click(true);
                 }
             }
 
@@ -479,8 +461,31 @@ namespace loopman
             {
                 wasapiIn.StopRecording();
                 wasapiIn.DataAvailable -= OnWasapiInDataAvailable;
+                wasapiIn = null;
+            }
+
+            if (wasapiOut != null)
+            {
+                wasapiOut.Stop();
+                wasapiOut = null;
             }
         }
+
+        private void bMonoInput_Click(object sender, RoutedEventArgs e)
+        {
+            if (inputPatcher.MonoRouting)
+            {
+                inputPatcher.MonoRouting = false;
+                bMonoInput.Foreground = bMonoInputDefault;
+            }
+            else
+            {
+                inputPatcher.MonoRouting = true;
+                bMonoInput.Foreground = Brushes.Green;
+            }
+
+        }
+
 
         // ----------------------------------------------------------------------------
         // MIDI Driver Interface 
@@ -592,6 +597,7 @@ namespace loopman
 
         private void IntDial_PreviewMouseDown(object sender, MouseButtonEventArgs e) => idController.PreviewMouseDown(sender, e);
         private void IntDial_PreviewMouseUp(object sender, MouseButtonEventArgs e) => idController.PreviewMouseUp(sender, e);
+
         private void IntDial_MouseMove(object sender, MouseEventArgs e)
         {
             Ellipse el = (Ellipse)sender;

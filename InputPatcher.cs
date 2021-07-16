@@ -5,7 +5,7 @@ using NAudio.Wave.Asio;
 
 namespace loopman
 {
-    public class AsioInputPatcher : ISampleProvider
+    public class InputPatcher : ISampleProvider
     {
 
         public float[] channelPeakIn; // 0-1 operating range
@@ -38,8 +38,7 @@ namespace loopman
         public float clickVolume { get; set; }
 
 
-
-        public AsioInputPatcher(int _sampleRate, int inputChannels, int outputChannels)
+        public InputPatcher(int _sampleRate, int inputChannels, int outputChannels)
         {
             sampleRate = _sampleRate;
             WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, outputChannels);
@@ -50,15 +49,9 @@ namespace loopman
             channelPeakOut = BufferHelpers.Ensure(channelPeakOut, outputChannels);
 
             // initial routing is each input straight to the same number output
-            for (int n = 0; n < Math.Min(inputChannels, outputChannels); n++)
-            {
-                routingMatrix[n, n] = 1.0f;
-            }
+            for (int n = 0; n < Math.Min(inputChannels, outputChannels); n++) { routingMatrix[n, n] = 1.0f; }
 
-            routingMatrix[0, 0] = 0.5f;
-            routingMatrix[0, 1] = 0.5f;
-            routingMatrix[1, 0] = 0.5f;
-            routingMatrix[1, 1] = 0.5f;
+            MonoRouting = true;
 
             // read-in the metronome click waves
             clickFile0.Position = 0;
@@ -71,11 +64,9 @@ namespace loopman
 
             // setup the metronome pan
             clickMix = BufferHelpers.Ensure(clickMix, outputChannels);
-            for (int i = 0; i < clickMix.Length; i++) clickMix[i] = 0;
+            for (int i = 0; i < clickMix.Length; i++) { clickMix[i] = 0; }
 
-            metronomeClick = false;
-
-            isPlaying = isRecording = false;
+            metronomeClick = isPlaying = isRecording = false;
         }
 
         public void Click(bool _firstBeatClick)
@@ -86,6 +77,35 @@ namespace loopman
             clickMix[0] = clickVolume * (clickPan - 1) / -2;
             clickMix[1] = clickVolume * (clickPan + 1) / 2;
             metronomeClick = true;
+        }
+
+        private bool _monoRouting;
+        public bool MonoRouting
+        {
+            get
+            {
+                return _monoRouting;
+            }
+
+            set
+            {
+                _monoRouting = value;
+
+                if (value)
+                {
+                    // mono routing, mixing each input into each output
+                    routingMatrix[0, 0] = 0.5f;
+                    routingMatrix[0, 1] = 0.5f;
+                    routingMatrix[1, 0] = 0.5f;
+                    routingMatrix[1, 1] = 0.5f;
+                } else
+                {
+                    routingMatrix[0, 0] = 1.0f;
+                    routingMatrix[0, 1] = 0.0f;
+                    routingMatrix[1, 0] = 0.0f;
+                    routingMatrix[1, 1] = 1.0f;
+                }
+            }
         }
 
         public void InitRecording(double seconds)
@@ -164,9 +184,122 @@ namespace loopman
             }
         }
 
+        public void ProcessWasapiBuffer(Byte[] inBuffer, int byteCount, BufferedWaveProvider bwp)
+        {
+            var buffer = new WaveBuffer(inBuffer);
+            var outBuffer = new WaveBuffer(inBuffer);
+
+            // interpret as 32 bit floating point audio
+            int samples = byteCount / 4 / inputChannels;
+
+            int inOffset = 0, outOffset = 0;
+            for (int n = 0; n < samples; n++)
+            {
+                var sampleL = buffer.FloatBuffer[inOffset];
+                var sampleR = buffer.FloatBuffer[inOffset + 1];
+
+                float sampleAbsL = Math.Abs(sampleL);
+                float sampleAbsR = Math.Abs(sampleR);
+
+                // Get peak for VU meter
+                if (sampleAbsL > channelPeakIn[0]) { channelPeakIn[0] = sampleAbsL; }
+                if (sampleAbsR > channelPeakIn[1]) { channelPeakIn[1] = sampleAbsR; }
+
+                // Noise Gate
+                if (ngEnabled)
+                {
+                    switch (ngState[0])
+                    {
+                        case 0: // Gate Open
+                            if (sampleAbsL <= ngThreshold)
+                            {
+                                ngReleaseSamples[0] = ngReleaseTime;
+                                ngState[0] = 1;
+                            }
+                            break;
+
+                        case 1: // Gate Closing
+                            if (sampleAbsL > ngThreshold) { ngState[0] = 0; }
+                            else if (--ngReleaseSamples[0] <= 0) { ngState[0] = 2; }
+                            break;
+
+                        case 2: // Gate Closed
+                            if (sampleAbsL > ngThreshold) { ngState[0] = 0; }
+                            else { sampleL = 0; }
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    switch (ngState[1])
+                    {
+                        case 0: // Gate Open
+                            if (sampleAbsR <= ngThreshold)
+                            {
+                                ngReleaseSamples[1] = ngReleaseTime;
+                                ngState[1] = 1;
+                            }
+                            break;
+
+                        case 1: // Gate Closing
+                            if (sampleAbsR > ngThreshold) { ngState[1] = 0; }
+                            else if (--ngReleaseSamples[1] <= 0) { ngState[1] = 2; }
+                            break;
+
+                        case 2: // Gate Closed
+                            if (sampleAbsR > ngThreshold) { ngState[1] = 0; }
+                            else { sampleR = 0; }
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+
+                // Mixer
+                outBuffer.FloatBuffer[outOffset]   = routingMatrix[0, 0] * sampleL + routingMatrix[1, 0] * sampleR;
+                outBuffer.FloatBuffer[outOffset+1] = routingMatrix[0, 1] * sampleL + routingMatrix[1, 1] * sampleR;
+
+                // Recorder
+                if (isRecording && (iRecord < iRecordMax)) { 
+                    recording1[iRecord++] = outBuffer.FloatBuffer[outOffset];
+                    recording1[iRecord++] = outBuffer.FloatBuffer[outOffset+1];
+                }
+                if (isPlaying)
+                {
+                    if (iPlay > loopEnd) { iPlay = loopStart; }
+                    outBuffer.FloatBuffer[outOffset] += recording1[iPlay++];
+                    outBuffer.FloatBuffer[outOffset+1] += recording1[iPlay++];
+                }
+
+                // mix in the metronome click wave (which is a mono wave)
+                if (metronomeClick)
+                {
+                    outBuffer.FloatBuffer[outOffset] += (float)(clickMix[0] *
+                        (firstBeatClick ? clickBuffer0[clickOffset >> 1] : clickBuffer1[clickOffset >> 1]));
+                    if (++clickOffset > clickOffsetMax) { metronomeClick = false; }
+
+                    outBuffer.FloatBuffer[outOffset+1] += (float)(clickMix[1] *
+                        (firstBeatClick ? clickBuffer0[clickOffset >> 1] : clickBuffer1[clickOffset >> 1]));
+                    if (++clickOffset > clickOffsetMax) { metronomeClick = false; }
+                }
+
+                float outSampleAbsL = Math.Abs(outBuffer.FloatBuffer[outOffset]);
+                float outSampleAbsR = Math.Abs(outBuffer.FloatBuffer[outOffset+1]);
+
+                // Get peak for VU meter
+                if (outSampleAbsL > channelPeakOut[0]) { channelPeakOut[0] = outSampleAbsL; }
+                if (outSampleAbsR > channelPeakOut[1]) { channelPeakOut[1] = outSampleAbsR; }
+
+                inOffset += inputChannels;
+                outOffset += inputChannels;
+            }
+            bwp.AddSamples(outBuffer, 0, byteCount);
+        }
 
         // here we get given all the input channels we recorded from
-        public void ProcessBuffer(IntPtr[] inBuffers, IntPtr[] outBuffers, int sampleCount, AsioSampleType sampleType)
+        public void ProcessASIOBuffer(IntPtr[] inBuffers, IntPtr[] outBuffers, int sampleCount, AsioSampleType sampleType)
         {
             Func<IntPtr, int, float> getInputSample;
             if (sampleType == AsioSampleType.Int32LSB)          getInputSample = GetInputSampleInt32LSB;
@@ -189,10 +322,7 @@ namespace loopman
                         float inSampleAbs = Math.Abs(inSample);
 
                         // Get peak for VU meter
-                        if (inSampleAbs > channelPeakIn[inputChannel])
-                        {
-                            channelPeakIn[inputChannel] = inSampleAbs;
-                        }
+                        if (inSampleAbs > channelPeakIn[inputChannel]) { channelPeakIn[inputChannel] = inSampleAbs; }
 
                         // Noise Gate
                         if (ngEnabled && (inputChannel < 2))
@@ -208,13 +338,13 @@ namespace loopman
                                     break;
 
                                 case 1: // Gate Closing
-                                    if (inSampleAbs > ngThreshold) ngState[inputChannel] = 0;
-                                    else if (--ngReleaseSamples[inputChannel] <= 0) ngState[inputChannel] = 2;
+                                    if (inSampleAbs > ngThreshold) { ngState[inputChannel] = 0; }
+                                    else if (--ngReleaseSamples[inputChannel] <= 0) { ngState[inputChannel] = 2; }
                                     break;
 
                                 case 2: // Gate Closed
-                                    if (inSampleAbs > ngThreshold) ngState[inputChannel] = 0;
-                                    else inSample = 0;
+                                    if (inSampleAbs > ngThreshold) { ngState[inputChannel] = 0; }
+                                    else { inSample = 0; }
                                     break;
 
                                 default:
@@ -224,16 +354,14 @@ namespace loopman
 
                         // mix in the desired amount
                         var amount = routingMatrix[inputChannel, outputChannel];
-                        if (amount > 0) mixBuffer[offset] += amount * inSample;
+                        if (amount > 0) { mixBuffer[offset] += amount * inSample; }
                     }
 
-                    if (isRecording && (iRecord < iRecordMax))
-                    {
-                        recording1[iRecord++] = mixBuffer[offset];
-                    }
+                    // Recorder
+                    if (isRecording && (iRecord < iRecordMax)) { recording1[iRecord++] = mixBuffer[offset]; }
                     if (isPlaying)
                     {
-                        if (iPlay > loopEnd) iPlay = loopStart;
+                        if (iPlay > loopEnd) { iPlay = loopStart; }
                         mixBuffer[offset] += recording1[iPlay++];
                     }
 
@@ -242,21 +370,16 @@ namespace loopman
                     {
                         mixBuffer[offset] += (float)(clickMix[outputChannel] *
                             (firstBeatClick ? clickBuffer0[clickOffset >> 1] : clickBuffer1[clickOffset >> 1]));
-                        if (++clickOffset > clickOffsetMax) metronomeClick = false;
+                        if (++clickOffset > clickOffsetMax) { metronomeClick = false; }
                     }
-
-                    float outSampleAbs = Math.Abs(mixBuffer[offset]);
 
                     // Get peak for VU meter
-                    if (outSampleAbs > channelPeakOut[outputChannel])
-                    {
-                        channelPeakOut[outputChannel] = outSampleAbs;
-                    }
+                    float outSampleAbs = Math.Abs(mixBuffer[offset]);
+                    if (outSampleAbs > channelPeakOut[outputChannel]) { channelPeakOut[outputChannel] = outSampleAbs; }
 
                     offset++;
                 }
             }
-
 
             Action<IntPtr, int, float> setOutputSample;
             if (sampleType == AsioSampleType.Int32LSB)          setOutputSample = SetOutputSampleInt32LSB;
@@ -264,7 +387,6 @@ namespace loopman
             else if (sampleType == AsioSampleType.Int24LSB)     throw new InvalidOperationException("Not supported");
             else if (sampleType == AsioSampleType.Float32LSB)   setOutputSample = SetOutputSampleFloat32LSB;
             else throw new ArgumentException($"Unsupported ASIO sample type {sampleType}");
-
 
             // now write to the output buffers
             offset = 0;

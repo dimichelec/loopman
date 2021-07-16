@@ -238,5 +238,17 @@ namespace loopman {
                 this["AudioOutDriverName"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool MonoInput {
+            get {
+                return ((bool)(this["MonoInput"]));
+            }
+            set {
+                this["MonoInput"] = value;
+            }
+        }
     }
 }
