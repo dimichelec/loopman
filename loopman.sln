@@ -25,6 +25,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{32102A25-44E
 		bin\Release\net5.0-windows\System.Management.dll = bin\Release\net5.0-windows\System.Management.dll
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Media", "Media", "{E0AD0039-DD9C-47D6-B9A6-1B5BF2F58EB8}"
+	ProjectSection(SolutionItems) = preProject
+		Media\Bb Click.wav = Media\Bb Click.wav
+		Media\Eb Click.wav = Media\Eb Click.wav
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +44,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E0AD0039-DD9C-47D6-B9A6-1B5BF2F58EB8} = {32102A25-44EB-45B5-8774-6D9D7E51F7EB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9603A2A9-379C-484E-A71C-C46DAC343457}
