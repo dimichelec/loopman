@@ -293,14 +293,16 @@ namespace loopman
                 asioOut.InputChannelOffset = 0;
                 asioOut.ChannelOffset = 0;
 
-                inputPatcher = new InputPatcher((int)drv.GetSampleRate(), 2, 2);  //(int)sampleRate, 2, 2);
+                inputPatcher = new InputPatcher((int)drv.GetSampleRate(), 2, 2);
 
                 asioOut.AudioAvailable += OnAsioOutAudioAvailable;
                 asioOut.InitRecordAndPlayback(new SampleToWaveProvider(inputPatcher), 2, 0);
                 asioOut.Play();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                MessageBox.Show("A handled exception just occurred: " + ex.Message, "Exception Sample", MessageBoxButton.OK, MessageBoxImage.Warning);
+
                 MMDeviceEnumerator deviceEnum = new();
                 MMDeviceCollection devs = deviceEnum.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
                 for (int i = 0; i < devs.Count; i++)
