@@ -5,6 +5,7 @@
     <TargetFramework>net5.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>0.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,15 +31,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Media\Bb Click.wav">
+    <Content Include="Media\Bb Click.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Resource>
+    </Content>
     <Resource Include="Media\cog.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="Media\Eb Click.wav">
+    <Content Include="Media\Eb Click.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Resource>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

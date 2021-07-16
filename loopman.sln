@@ -7,6 +7,24 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "loopman", "loopman.csproj",
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{F1697580-8E08-4844-985D-EB28E9DDF2D7}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{32102A25-44EB-45B5-8774-6D9D7E51F7EB}"
+	ProjectSection(SolutionItems) = preProject
+		bin\Release\net5.0-windows\loopman.deps.json = bin\Release\net5.0-windows\loopman.deps.json
+		bin\Release\net5.0-windows\loopman.dll = bin\Release\net5.0-windows\loopman.dll
+		bin\Release\net5.0-windows\loopman.exe = bin\Release\net5.0-windows\loopman.exe
+		bin\Release\net5.0-windows\loopman.pdb = bin\Release\net5.0-windows\loopman.pdb
+		bin\Release\net5.0-windows\loopman.runtimeconfig.dev.json = bin\Release\net5.0-windows\loopman.runtimeconfig.dev.json
+		bin\Release\net5.0-windows\loopman.runtimeconfig.json = bin\Release\net5.0-windows\loopman.runtimeconfig.json
+		bin\Release\net5.0-windows\NAudio.Asio.dll = bin\Release\net5.0-windows\NAudio.Asio.dll
+		bin\Release\net5.0-windows\NAudio.Core.dll = bin\Release\net5.0-windows\NAudio.Core.dll
+		bin\Release\net5.0-windows\NAudio.dll = bin\Release\net5.0-windows\NAudio.dll
+		bin\Release\net5.0-windows\NAudio.Midi.dll = bin\Release\net5.0-windows\NAudio.Midi.dll
+		bin\Release\net5.0-windows\NAudio.Wasapi.dll = bin\Release\net5.0-windows\NAudio.Wasapi.dll
+		bin\Release\net5.0-windows\NAudio.WinForms.dll = bin\Release\net5.0-windows\NAudio.WinForms.dll
+		bin\Release\net5.0-windows\NAudio.WinMM.dll = bin\Release\net5.0-windows\NAudio.WinMM.dll
+		bin\Release\net5.0-windows\System.Management.dll = bin\Release\net5.0-windows\System.Management.dll
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
