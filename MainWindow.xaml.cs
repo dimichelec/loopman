@@ -495,6 +495,9 @@ namespace loopman
         private void ChangeMIDIDevice(string deviceName)
         {
             if (MidiIn.NumberOfDevices == 0) return;
+            if (deviceName == null) return;
+            if (deviceName == "") return;
+
             int deviceId;
             for (deviceId = 0; deviceId < MidiIn.NumberOfDevices; deviceId++)
             {

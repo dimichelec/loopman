@@ -145,7 +145,7 @@ namespace loopman
             {
                 ComboBoxItem o = new ComboBoxItem();
                 o.Content = MidiIn.DeviceInfo(i).ProductName;
-                //if (!TestAudioDriver(name)) o.IsEnabled = false;
+                if (!TestMidiDriver(i)) o.IsEnabled = false;
                 cbMidiDevice.Items.Add(o);
             }
 
@@ -155,7 +155,14 @@ namespace loopman
             }
             else
             {
-                cbMidiDevice.Text = ((ComboBoxItem)cbMidiDevice.Items[0]).Content.ToString();
+                foreach (ComboBoxItem dev in cbMidiDevice.Items)
+                {
+                    if (dev.IsEnabled)
+                    {
+                        cbMidiDevice.Text = dev.Content.ToString();
+                        break;
+                    }
+                }
             }
                 
         }
@@ -175,6 +182,22 @@ namespace loopman
             driver.ReleaseComAsioDriver();
             return true;
         }
+
+        private bool TestMidiDriver(int driverNumber)
+        {
+            MidiIn driver;
+            try
+            {
+                driver = new(driverNumber);
+                driver.Dispose();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            return true;
+        }
+
 
         private int FindInContent(ComboBox cb, string s)
         {
