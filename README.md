@@ -11,3 +11,13 @@ There are plenty of hardware loopers on the market that are great for using this
 It's in C# and uses Mark Heath's [NAudio](https://github.com/naudio/NAudio/blob/master/README.md)
 
 I based the function on the ASIO driver interface. I've started adding WASAPI support, but I haven't wrung-out latencies yet.
+
+
+<!-- --------------------------------------------------------------------
+
+Coding Notes:
+
+  Use this to reset the release application settings:
+    RMDIR /S/Q %USERPROFILE%\AppData\Local\loopman
+  
+-------------------------------------------------------------------- -->
